@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex align-items-center mb-4">
+        <i class="bi bi-ticket-detailed section-icon me-3"></i>
+        <div>
+            <h1 class="mb-0">
+                {% if template %}Редактирование шаблона{% else %}Добавление нового шаблона{% endif %}
+            </h1>
+            <p class="lead text-muted">Шаблон ответа для тикетов</p>
+        </div>
+    </div>
+
+    <form method="POST">
+        <div class="mb-3">
+            <label for="situation" class="form-label">Ситуация</label>
+            <input type="text" class="form-control" id="situation" name="situation" 
+                   value="{{ template.situation if template else '' }}" required>
+        </div>
+        
+        <div class="mb-3">
+            <label for="response" class="form-label">Шаблон ответа</label>
+            <textarea class="form-control" id="response" name="response" rows="6" required>{{ template.response if template else '' }}</textarea>
+        </div>
+        
+        <button type="submit" class="btn btn-primary me-2">
+            <i class="bi bi-save me-1"></i>Сохранить
+        </button>
+        <a href="{{ url_for('ticket_responses') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Отмена
+        </a>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-lg">
+                <div class="card-header bg-primary text-white text-center py-4">
+                    <h2><i class="bi bi-discord me-2"></i>Вход в систему</h2>
+                </div>
+                
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <img src="{{ url_for('static', filename='img/discord-logo.png') }}" alt="Discord Logo" class="mb-3" style="width: 100px;">
+                        <p class="lead">Чтобы получить доступ к системе, нужно авторизоваться через Discord</p>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('login') }}" class="btn btn-lg btn-discord">
+                            <i class="bi bi-discord me-2"></i>Войти через Discord
+                        </a>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="alert alert-info">
+                        <h5><i class="bi bi-info-circle me-2"></i>Важно!</h5>
+                        <ul class="my-2">
+                            <li>Вы должны быть участником нашего сервера Discord</li>
+                            <li>Доступ к системе имеют только пользователи с ролью модератора</li>
+                            <li>Главные модераторы получают дополнительные права на редактирование</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

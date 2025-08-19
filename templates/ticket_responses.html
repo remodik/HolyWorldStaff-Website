@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex align-items-center mb-4">
+        <i class="bi bi-ticket-detailed section-icon me-3"></i>
+        <div>
+            <h1 class="mb-0">Ответы на тикеты</h1>
+            <p class="text-muted mb-0">Быстрые шаблоны для ответов на частые вопросы</p>
+        </div>
+    </div>
+
+    {% if current_user.access_level >= 2 %}
+    <div class="mb-4">
+        <a href="{{ url_for('add_response_template') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Добавить шаблон
+        </a>
+    </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-chat-left-text me-2 text-primary"></i>Шаблоны ответов</h5>
+            <div class="input-group" style="width: 250px;">
+                <label for="searchTemplates"></label><input type="text" id="searchTemplates" class="form-control form-control-sm" placeholder="Поиск...">
+                <button class="btn btn-outline-secondary" type="button">
+                    <i class="bi bi-search"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+                {% for template in response_templates %}
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="flex-grow-1" style="min-width: 0; cursor: pointer;" 
+                             onclick="toggleTemplate('content-{{ template.id }}', this)">
+                            <h6 class="mb-1 text-truncate">{{ template.situation }}</h6>
+                            <p class="mb-0 text-muted text-truncate small template-preview">
+                                {{ template.response|truncate(150) }}
+                            </p>
+                        </div>
+                        <div class="btn-group ms-3" role="group">
+                            <button class="btn btn-sm btn-outline-primary copy-btn"
+                                    data-full-text="{{ template.response }}"
+                                    title="Копировать">
+                                <i class="bi bi-clipboard"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary view-btn"
+                                    onclick="toggleTemplate('content-{{ template.id }}', this)"
+                                    title="Показать полностью">
+                                <i class="bi bi-arrows-angle-expand"></i>
+                            </button>
+                            {% if current_user.access_level >= 2 %}
+                            <a href="{{ url_for('edit_response_template', template_id=template.id) }}"
+                               class="btn btn-sm btn-outline-warning"
+                               title="Редактировать">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <form method="POST"
+                                  action="{{ url_for('delete_response_template', template_id=template.id) }}"
+                                  class="d-inline">
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-danger"
+                                        title="Удалить"
+                                        onclick="return confirm('Удалить этот шаблон?')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="collapse mt-2" id="content-{{ template.id }}">
+                        <div class="card card-body bg-light">
+                            <pre class="mb-0">{{ template.response }}</pre>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleTemplate(templateId, element) {
+    const target = document.getElementById(templateId);
+    const bsCollapse = new bootstrap.Collapse(target, { toggle: true });
+
+    const btn = element.closest('.list-group-item').querySelector('.view-btn');
+    if (btn && !element.classList.contains('view-btn')) {
+        const icon = btn.querySelector('i');
+        const isExpanded = target.classList.contains('show');
+        
+        if (isExpanded) {
+            icon.classList.remove('bi-arrows-angle-expand');
+            icon.classList.add('bi-arrows-angle-contract');
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-primary');
+        } else {
+            icon.classList.remove('bi-arrows-angle-contract');
+            icon.classList.add('bi-arrows-angle-expand');
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-outline-secondary');
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const templateText = this.getAttribute('data-full-text');
+            
+            navigator.clipboard.writeText(templateText).then(() => {
+                const icon = this.querySelector('i');
+                icon.classList.remove('bi-clipboard');
+                icon.classList.add('bi-check2');
+                
+                setTimeout(() => {
+                    icon.classList.remove('bi-check2');
+                    icon.classList.add('bi-clipboard');
+                }, 2000);
+            }).catch(err => {
+                console.error('Ошибка копирования:', err);
+                alert('Не удалось скопировать текст');
+            });
+        });
+    });
+
+    document.getElementById('searchTemplates').addEventListener('input', function() {
+        const searchText = this.value.toLowerCase();
+        document.querySelectorAll('.list-group-item').forEach(item => {
+            const situation = item.querySelector('h6').textContent.toLowerCase();
+            const responsePreview = item.querySelector('.template-preview').textContent.toLowerCase();
+            
+            if (situation.includes(searchText) || responsePreview.includes(searchText)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+});
+</script>
+
+<style>
+.section-icon {
+    font-size: 1.75rem;
+    color: #0d6efd;
+}
+
+.list-group-item {
+    transition: background-color 0.2s;
+    padding: 1rem;
+}
+
+.list-group-item:hover {
+    background-color: #f8f9fa;
+}
+
+.btn-group .btn {
+    padding: 0.25rem 0.5rem;
+}
+
+.template-preview {
+    cursor: pointer;
+}
+
+pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 0.9rem;
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-family: inherit;
+}
+
+.copy-btn:hover {
+    background-color: #0d6efd;
+    color: white !important;
+}
+
+.view-btn:hover:not(.btn-primary) {
+    background-color: #6c757d;
+    color: white !important;
+}
+
+.card-header {
+    background-color: #f8f9fa !important;
+    border-bottom: 1px solid rgba(0,0,0,.125);
+}
+</style>
+{% endblock %}

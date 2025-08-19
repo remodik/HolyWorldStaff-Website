@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div id="userData"
+         data-access-level="{{ current_user.access_level }}"
+         data-is-authenticated="{{ current_user.is_authenticated|lower }}"
+         style="display: none;">
+    </div>
+
+    <div class="d-flex align-items-center mb-4">
+        <i class="bi bi-people section-icon me-3"></i>
+        <div>
+            <h1 class="mb-0">Правила состава</h1>
+            <p class="lead text-muted">
+                {% if current_user.is_authenticated %}
+                Ваша должность:
+                <span class="badge bg-primary">
+                    {% if current_user.access_level == 6 %}Куратор дискорда
+                    {% elif current_user.access_level == 5 %}Зам.Куратора дискорда
+                    {% elif current_user.access_level == 4 %}Гл.Модератор дискорда
+                    {% elif current_user.access_level == 3 %}Ст.Модератор дискорда
+                    {% elif current_user.access_level == 2 %}Модератор дискорда
+                    {% elif current_user.access_level == 1 %}Мл.Модератор дискорда
+                    {% endif %}
+                </span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3><i class="bi bi-card-checklist me-2"></i>Ваши обязанности и права</h3>
+                </div>
+                <div class="card-body">
+                    {% set role = staff_roles|selectattr("access_level", "equalto", current_user.access_level)|first %}
+                    {% if role %}
+                    <div class="mb-4">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Основные обязанности:</h5>
+                                <ul>
+                                    {% for item in role.responsibilities.split('\n') %}
+                                    {% if item.strip() %}
+                                    <li>{{ item }}</li>
+                                    {% endif %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Права:</h5>
+                                <ul>
+                                    {% for item in role.permissions.split('\n') %}
+                                    {% if item.strip() %}
+                                    <li>{{ item }}</li>
+                                    {% endif %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        Для вашей должности еще не установлены права и обязанности
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-danger text-white">
+                    <h3><i class="bi bi-x-circle me-2"></i>Запрещенные действия</h3>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">Использование прав в личных целях</li>
+                        <li class="list-group-item">Наказания без оснований/доказательств</li>
+                        <li class="list-group-item">Разглашение внутренней информации</li>
+                        <li class="list-group-item">Игнорирование обращений участников</li>
+                        <li class="list-group-item">Использование слов исключений в общении с игроками</li>
+                        <li class="list-group-item">Блокировка участников сервера</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h3><i class="bi bi-check-circle me-2"></i>Основные обязанности</h3>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">Своевременно закрывайте тикеты</li>
+                        <li class="list-group-item">Оперативно отвечайте на вопросы игроков</li>
+                        <li class="list-group-item">Проверяйте апелляции</li>
+                        <li class="list-group-item">Во время работы в голосовом чате всегда включать видеофиксацию</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

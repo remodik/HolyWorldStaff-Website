@@ -1,0 +1,165 @@
+body {
+    background-color: #f8f9fa;
+    padding-top: 56px;
+}
+
+.avatar {
+    width: 30px;
+    height: 30px;
+    object-fit: cover;
+}
+
+.card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-bottom: 20px;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+.card-header {
+    font-weight: 600;
+}
+
+.btn-discord {
+    background-color: #5865F2;
+    color: white;
+    padding: 10px 20px;
+    font-size: 1.1rem;
+}
+
+.btn-discord:hover {
+    background-color: #4752c4;
+    color: white;
+}
+
+.guide-content {
+    line-height: 1.8;
+    font-size: 1.05rem;
+}
+
+.guide-content h2, .guide-content h3, .guide-content h4 {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.guide-content p {
+    margin-bottom: 1rem;
+}
+
+.guide-content ul, .guide-content ol {
+    padding-left: 2rem;
+    margin-bottom: 1rem;
+}
+
+.guide-content pre {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+.step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.feature-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1030;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.ticket-card {
+    border-left: 4px solid #0d6efd;
+    transition: all 0.3s;
+}
+
+.ticket-card:hover {
+    border-left-color: #0b5ed7;
+    background-color: #f8f9fa;
+}
+
+@media (max-width: 992px) {
+    .navbar-collapse {
+        padding-bottom: 15px;
+    }
+}
+
+.rule-card {
+    border-left: 4px solid #198754;
+}
+
+.rule-card:hover {
+    border-left-color: #157347;
+    background-color: #f8f9fa;
+}
+
+.section-icon {
+    font-size: 2.5rem;
+    color: #6f42c1;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+    .card {
+        margin-bottom: 15px;
+    }
+
+    .display-4 {
+        font-size: 2rem;
+    }
+
+    .lead {
+        font-size: 1rem;
+    }
+}
+
+.staff-avatar {
+    transition: transform 0.3s ease;
+}
+
+.staff-avatar:hover {
+    transform: scale(1.1);
+}
+
+.staff-table {
+    background-color: #343a40;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.staff-table th {
+    background-color: #495057;
+    color: white;
+}
+
+.staff-table tr:hover {
+    background-color: #495057;
+}
+
+.role-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid #495057;
+}
+
+.role-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
