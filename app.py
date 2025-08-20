@@ -5,10 +5,11 @@ from sqlalchemy import select
 from flask import Flask, render_template, redirect, url_for, request, flash, abort, jsonify, make_response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from config import Config
-from models import db, User, Guide, ResponseTemplate, StaffRole
+from models import db, User, Guide, ResponseTemplate, StaffRole, SalaryHistory, ModeratorStats
 from discord_bot import get_user_access_level, run_bot
 from functools import wraps
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required
+from flask_jwt_extended import JWTManager, create_access_token
+import json
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -196,8 +197,6 @@ def dashboard():
 @app.route('/update-staff-roles', methods=['POST'])
 @staff_required(access_level=6)
 def update_staff_roles():
-    if current_user.access_level < 6:
-        abort(403)
 
     role_level = int(request.form.get('role_level'))
     permissions = request.form.get('permissions', '').strip()
@@ -253,9 +252,6 @@ def view_guide(guide_id):
 @app.route('/edit/<int:guide_id>', methods=['GET', 'POST'])
 @staff_required(access_level=4)
 def edit_guide(guide_id):
-    if current_user.access_level < 4:
-        flash('Недостаточно прав для редактирования!', 'danger')
-        return redirect(url_for('dashboard'))
 
     guide = Guide.query.get_or_404(guide_id)
 
@@ -282,8 +278,6 @@ def staff_rules():
 @app.route('/get-staff-member')
 @staff_required(access_level=4)
 def get_staff_member():
-    if current_user.access_level < 4:
-        return jsonify({'error': 'Недостаточно прав'}), 403
 
     member_id = request.args.get('id')
     if not member_id:
@@ -314,8 +308,6 @@ def get_staff_member():
 @staff_required(access_level=4)
 def update_staff_member():
     try:
-        if current_user.access_level < 4:
-            return jsonify({'error': 'Недостаточно прав'}), 403
 
         member_id = request.form.get('member_id')
         if not member_id:
@@ -350,8 +342,6 @@ def update_staff_member():
 @app.route('/get-role-data')
 @staff_required(access_level=6)
 def get_role_data():
-    if current_user.access_level < 6:
-        abort(403)
 
     level = request.args.get('level', type=int)
     role = StaffRole.query.filter_by(access_level=level).first()
@@ -371,9 +361,6 @@ def get_role_data():
 @app.route('/create', methods=['GET', 'POST'])
 @staff_required(access_level=4)
 def create_guide():
-    if current_user.access_level < 4:
-        flash('Недостаточно прав для создания!', 'danger')
-        return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
         new_guide = Guide(
@@ -399,9 +386,6 @@ def ticket_responses():
 @app.route('/add-response-template', methods=['GET', 'POST'])
 @staff_required(access_level=4)
 def add_response_template():
-    if current_user.access_level < 4:
-        flash('Недостаточно прав для добавления шаблонов!', 'danger')
-        return redirect(url_for('ticket_responses'))
 
     if request.method == 'POST':
         situation = request.form.get('situation')
@@ -427,9 +411,6 @@ def add_response_template():
 @app.route('/edit-response-template/<int:template_id>', methods=['GET', 'POST'])
 @staff_required(access_level=4)
 def edit_response_template(template_id):
-    if current_user.access_level < 4:
-        flash('Недостаточно прав для редактирования шаблонов!', 'danger')
-        return redirect(url_for('ticket_responses'))
 
     template = ResponseTemplate.query.get_or_404(template_id)
 
@@ -447,9 +428,6 @@ def edit_response_template(template_id):
 @app.route('/delete-response-template/<int:template_id>', methods=['POST'])
 @staff_required(access_level=4)
 def delete_response_template(template_id):
-    if current_user.access_level < 4:
-        flash('Недостаточно прав для удаления шаблонов!', 'danger')
-        return redirect(url_for('ticket_responses'))
 
     template = ResponseTemplate.query.get_or_404(template_id)
     db.session.delete(template)
@@ -462,9 +440,6 @@ def delete_response_template(template_id):
 @app.route('/delete/<int:guide_id>', methods=['POST'])
 @staff_required(access_level=4)
 def delete_guide(guide_id):
-    if current_user.access_level < 4:
-        flash('Недостаточно прав для удаления!', 'danger')
-        return redirect(url_for('dashboard'))
 
     guide = Guide.query.get_or_404(guide_id)
     db.session.delete(guide)
@@ -489,8 +464,8 @@ def get_all_staff():
                 'nickname': member.nickname,
                 'salary': member.salary,
                 'warnings': member.warnings,
-                'vacation_date': member.vacation_date.strftime('%Y-%m-%d') if member.vacation_date else None,
-                'join_date': member.join_date.strftime('%Y-%m-%d') if member.join_date else None
+                'vacation_date': member.vacation_date.strftime('%d.%m.%Y') if member.vacation_date else None,
+                'join_date': member.join_date.strftime('%d.%m.%Y') if member.join_date else None
             })
 
         return jsonify({
@@ -544,6 +519,365 @@ def update_warnings():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/salary')
+@staff_required()
+def salary_page():
+    current_month = datetime.now().month
+    current_year = datetime.now().year
+
+    current_stats = ModeratorStats.query.filter_by(
+        month=current_month,
+        year=current_year
+    ).all()
+
+    moderators = User.query.filter(User.access_level.between(1, 4)).all()
+    for moderator in moderators:
+        if not any(stat.user_id == moderator.id for stat in current_stats):
+            new_stat = ModeratorStats(
+                user_id=moderator.id,
+                month=current_month,
+                year=current_year,
+                punishments=0,
+                tickets_closed=0,
+                weeks_missed=0
+            )
+            db.session.add(new_stat)
+            current_stats.append(new_stat)
+
+    db.session.commit()
+
+    current_stats = ModeratorStats.query.filter_by(
+        month=current_month,
+        year=current_year
+    ).all()
+
+    calculated_data = calculate_salaries(current_stats)
+
+    available_years = db.session.query(SalaryHistory.year).distinct().all()
+    available_years = [year[0] for year in available_years if year[0]]
+
+    return render_template('salary.html',
+                           current_stats=current_stats,
+                           calculated_data=calculated_data,
+                           available_years=available_years,
+                           staff_members=moderators,
+                           current_month=current_month,
+                           current_year=current_year)
+
+
+@app.route('/payout-salaries', methods=['POST'])
+@staff_required(access_level=5)
+def payout_salaries():
+    try:
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+
+        stats = ModeratorStats.query.filter_by(
+            month=current_month,
+            year=current_year
+        ).all()
+
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Зарплаты успешно выданы!'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+
+
+def calculate_salaries(stats):
+    results = {}
+
+    if not stats:
+        return results
+
+    for stat in stats:
+        punishments = stat.punishments
+        if stat.weeks_missed == 1:
+            punishments = max(0, punishments - 50)
+        elif stat.weeks_missed == 2:
+            punishments = max(0, punishments - 125)
+        elif stat.weeks_missed >= 3:
+            punishments = max(0, punishments - 200)
+
+        stat.adjusted_punishments = punishments
+
+    sorted_by_punishments = sorted(stats, key=lambda x: x.adjusted_punishments, reverse=True)
+    sorted_by_tickets = sorted(stats, key=lambda x: x.tickets_closed, reverse=True)
+
+    ranks = {}
+    for i, stat in enumerate(sorted_by_punishments):
+        ranks[stat.user_id] = i + 1
+
+    for stat in stats:
+        punishments = stat.adjusted_punishments
+        if punishments <= 0:
+            base_salary = 100
+        elif punishments < 75:
+            base_salary = 150
+        elif punishments < 100:
+            base_salary = 350
+        elif punishments < 150:
+            base_salary = 500
+        elif punishments < 250:
+            base_salary = 700
+        else:
+            base_salary = 1000
+
+        positive_multiplier = 1.0
+        positive_details = []
+
+        if stat.user.access_level == 4:
+            positive_multiplier *= 1.3
+            positive_details.append("x1.3")
+        elif stat.user.access_level == 3:
+            positive_multiplier *= 1.2
+            positive_details.append("x1.2")
+        elif stat.user.access_level == 2:
+            positive_multiplier *= 1.1
+            positive_details.append("x1.1")
+
+        tickets = stat.tickets_closed
+        if tickets >= 45:
+            positive_multiplier *= 1.25
+            positive_details.append("x1.25")
+        elif tickets >= 35:
+            positive_multiplier *= 1.2
+            positive_details.append("x1.2")
+        elif tickets >= 20:
+            positive_multiplier *= 1.15
+            positive_details.append("x1.15")
+        elif tickets >= 10:
+            positive_multiplier *= 1.1
+            positive_details.append("x1.1")
+
+        rank = ranks.get(stat.user_id, 0)
+        if rank == 1:
+            positive_multiplier *= 1.2
+            positive_details.append("x1.2")
+        elif rank == 2:
+            positive_multiplier *= 1.1
+            positive_details.append("x1.1")
+        elif rank == 3:
+            positive_multiplier *= 1.05
+            positive_details.append("x1.05")
+
+        if sorted_by_tickets and stat == sorted_by_tickets[0]:
+            positive_multiplier *= 1.1
+            positive_details.append("x1.1")
+
+        positive_multiplier = min(positive_multiplier, 1.75)
+
+        negative_multiplier = 1.0
+        negative_details = []
+
+        final_salary = round(base_salary * positive_multiplier * negative_multiplier)
+
+        total_multiplier = positive_multiplier * negative_multiplier
+
+        results[stat.user_id] = {
+            'base_salary': base_salary,
+            'final_salary': final_salary,
+            'total_multiplier': total_multiplier,
+            'total_display': f"x{total_multiplier:.2f}".replace('.', ','),
+            'rank': rank,
+            'rank_display': f"x1.2" if rank == 1 else
+            f"x1.1" if rank == 2 else
+            f"x1.05" if rank == 3 else "-",
+            'position_display': "x1.3" if stat.user.access_level == 4 else
+            "x1.2" if stat.user.access_level == 3 else
+            "x1.1" if stat.user.access_level == 2 else "-",
+            'ticket_display': "x1.1" if 10 <= tickets < 20 else
+            "x1.15" if 20 <= tickets < 30 else
+            "x1.2" if 30 <= tickets < 40 else
+            "x1.25" if tickets >= 40 else "-",
+            'top_mod_display': "x1.1" if (sorted_by_tickets and stat == sorted_by_tickets[0]) else "-",
+            'weeks_missed': stat.weeks_missed,
+            'weeks_display': f"-{stat.weeks_missed * 5}%" if stat.weeks_missed > 0 else "-",
+            'positive_details': positive_details,
+            'negative_details': negative_details
+        }
+
+    return results
+
+
+@app.route('/update-mod-stats', methods=['POST'])
+@staff_required(access_level=5)
+def update_moderator_stats():
+    try:
+        user_id = request.form.get('user_id')
+        punishments = int(request.form.get('punishments', 0))
+        tickets_closed = int(request.form.get('tickets_closed', 0))
+        weeks_missed = int(request.form.get('weeks_missed', 0))
+
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+
+        stat = ModeratorStats.query.filter_by(
+            user_id=user_id,
+            month=current_month,
+            year=current_year
+        ).first()
+
+        if not stat:
+            stat = ModeratorStats(
+                user_id=user_id,
+                month=current_month,
+                year=current_year
+            )
+            db.session.add(stat)
+
+        stat.punishments = punishments
+        stat.tickets_closed = tickets_closed
+        stat.weeks_missed = weeks_missed
+
+        db.session.commit()
+
+        flash('Статистика обновлена!', 'success')
+        return redirect(url_for('salary_page'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка: {str(e)}', 'danger')
+        return redirect(url_for('salary_page'))
+
+
+@app.route('/get-mod-stats')
+@staff_required(access_level=5)
+def get_mod_stats():
+    user_id = request.args.get('user_id')
+    current_month = datetime.now().month
+    current_year = datetime.now().year
+
+    stat = ModeratorStats.query.filter_by(
+        user_id=user_id,
+        month=current_month,
+        year=current_year
+    ).first()
+
+    if stat:
+        return jsonify({
+            'user_id': stat.user_id,
+            'punishments': stat.punishments,
+            'tickets_closed': stat.tickets_closed,
+        })
+    else:
+        return jsonify({
+            'user_id': user_id,
+            'punishments': 0,
+            'tickets_closed': 0,
+        })
+
+
+@app.route('/calculate-salaries', methods=['POST'])
+@staff_required(access_level=5)
+def calculate_salaries_route():
+    try:
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+
+        stats = ModeratorStats.query.filter_by(
+            month=current_month,
+            year=current_year
+        ).all()
+
+        calculated_data = calculate_salaries(stats)
+
+        for user_id, data in calculated_data.items():
+            SalaryHistory.query.filter_by(
+                user_id=user_id,
+                month=current_month,
+                year=current_year
+            ).delete()
+
+            salary = SalaryHistory(
+                user_id=user_id,
+                month=current_month,
+                year=current_year,
+                base_salary=data['base_salary'],
+                final_salary=data['final_salary'],
+                multiplier=data['total_multiplier'],
+                details=json.dumps({
+                    'rank': data['rank'],
+                    'positive_details': data['positive_details'],
+                    'negative_details': data['negative_details'],
+                    'weeks_missed': data['weeks_missed']
+                })
+            )
+            db.session.add(salary)
+
+        db.session.commit()
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/salary-history')
+@staff_required(access_level=4)
+def salary_history():
+    month = request.args.get('month', type=int)
+    year = request.args.get('year', type=int)
+
+    query = SalaryHistory.query.join(User)
+
+    if month:
+        query = query.filter(SalaryHistory.month == month)
+    if year:
+        query = query.filter(SalaryHistory.year == year)
+
+    history = query.order_by(SalaryHistory.year.desc(), SalaryHistory.month.desc()).all()
+
+    html = '''
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Месяц/Год</th>
+                <th>Модератор</th>
+                <th>Базовая ЗП</th>
+                <th>Множитель</th>
+                <th>Итоговая ЗП</th>
+                <th>Детали</th>
+            </tr>
+        </thead>
+        <tbody>
+    '''
+
+    for record in history:
+        details = json.loads(record.details) if record.details else {}
+        html += f'''
+            <tr>
+                <td>{record.month}/{record.year}</td>
+                <td>{record.user.username}</td>
+                <td>{record.base_salary}</td>
+                <td>x{record.multiplier:.2f}</td>
+                <td><strong>{record.final_salary}</strong></td>
+                <td>
+                    <button class="btn btn-sm btn-info" type="button" data-bs-toggle="collapse" 
+                            data-bs-target="#details-{record.id}" aria-expanded="false" 
+                            aria-controls="details-{record.id}">
+                        Показать детали
+                    </button>
+                    <div class="collapse" id="details-{record.id}">
+                        <div class="card card-body">
+                            <strong>Позитивные множители:</strong> {', '.join(details.get('positive_details', [])) if details.get('positive_details') else 'Нет'}<br>
+                            <strong>Негативные множители:</strong> {', '.join(details.get('negative_details', [])) if details.get('negative_details') else 'Нет'}<br>
+                            <strong>Пропущено недель:</strong> {details.get('weeks_missed', 0)}<br>
+                            <strong>Место в рейтинге:</strong> {details.get('rank', 'Н/Д')}
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        '''
+
+    html += '</tbody></table>'
+
+    return jsonify({'html': html})
 
 
 @app.route('/api/staff/<string:member_id>', methods=['GET'])
