@@ -5,7 +5,7 @@ from sqlalchemy import select
 from flask import Flask, render_template, redirect, url_for, request, flash, abort, jsonify, make_response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from config import Config
-from models import db, User, Guide, ResponseTemplate, StaffRole, SalaryHistory, ModeratorStats
+from models import db, User, Guide, ResponseTemplate, StaffRole, SalaryHistory, ModeratorStats, PurchaseRequest, VacationRequest
 from discord_bot import get_user_access_level, run_bot
 from functools import wraps
 from flask_jwt_extended import JWTManager, create_access_token
@@ -42,11 +42,33 @@ def staff_required(access_level=1):
         @login_required
         def decorated_function(*args, **kwargs):
             if current_user.access_level < access_level:
+                if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json:
+                    return jsonify({"success": False, "error": "Недостаточно прав"}), 403
                 flash('Недостаточно прав для доступа!', 'danger')
                 return redirect(url_for('dashboard'))
             return f(*args, **kwargs)
         return decorated_function
     return decorator
+
+
+def api_staff_required(access_level=1):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return jsonify({"success": False, "error": "Не авторизован"}), 401
+            if current_user.access_level < access_level:
+                return jsonify({"success": False, "error": "Недостаточно прав"}), 403
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+@login_manager.unauthorized_handler
+def unauthorized_callback():
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json:
+        return jsonify({"success": False, "error": "Не авторизован"}), 401
+    return redirect(url_for("login"))
 
 
 @login_manager.user_loader
@@ -568,21 +590,30 @@ def salary_page():
 
 
 @app.route('/payout-salaries', methods=['POST'])
-@staff_required(access_level=5)
+@api_staff_required(access_level=5)
 def payout_salaries():
     try:
         current_month = datetime.now().month
         current_year = datetime.now().year
 
-        stats = ModeratorStats.query.filter_by(
+        salaries = SalaryHistory.query.filter_by(
             month=current_month,
             year=current_year
         ).all()
 
+        updated = 0
+        for salary in salaries:
+            user = User.query.get(salary.user_id)
+            if user:
+                try:
+                    current_val = int(user.salary or 0)
+                except (ValueError, TypeError):
+                    current_val = 0
+                user.salary = str(current_val + int(salary.final_salary or 0))
+                updated += 1
+
         db.session.commit()
-
-        return jsonify({'success': True, 'message': 'Зарплаты успешно выданы!'})
-
+        return jsonify({'success': True, 'updated': updated})
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)})
@@ -599,21 +630,19 @@ def calculate_salaries(stats):
         if stat.weeks_missed == 1:
             punishments = max(0, punishments - 50)
         elif stat.weeks_missed == 2:
-            punishments = max(0, punishments - 125)
+            punishments = max(0, punishments - 75)
         elif stat.weeks_missed >= 3:
-            punishments = max(0, punishments - 200)
-
+            punishments = max(0, punishments - 90)
         stat.adjusted_punishments = punishments
 
     sorted_by_punishments = sorted(stats, key=lambda x: x.adjusted_punishments, reverse=True)
     sorted_by_tickets = sorted(stats, key=lambda x: x.tickets_closed, reverse=True)
 
-    ranks = {}
-    for i, stat in enumerate(sorted_by_punishments):
-        ranks[stat.user_id] = i + 1
+    ranks = {stat.user_id: i + 1 for i, stat in enumerate(sorted_by_punishments)}
 
     for stat in stats:
         punishments = stat.adjusted_punishments
+
         if punishments <= 0:
             base_salary = 100
         elif punishments < 75:
@@ -627,78 +656,74 @@ def calculate_salaries(stats):
         else:
             base_salary = 1000
 
-        positive_multiplier = 1.0
+        bonus_sum = 0.0
         positive_details = []
 
-        if stat.user.access_level == 4:
-            positive_multiplier *= 1.3
+        if stat.user.access_level == 4 or stat.user.access_level == 5:
+            bonus_sum += 0.3
             positive_details.append("x1.3")
         elif stat.user.access_level == 3:
-            positive_multiplier *= 1.2
+            bonus_sum += 0.2
             positive_details.append("x1.2")
         elif stat.user.access_level == 2:
-            positive_multiplier *= 1.1
+            bonus_sum += 0.1
             positive_details.append("x1.1")
 
         tickets = stat.tickets_closed
         if tickets >= 45:
-            positive_multiplier *= 1.25
+            bonus_sum += 0.25
             positive_details.append("x1.25")
         elif tickets >= 35:
-            positive_multiplier *= 1.2
+            bonus_sum += 0.2
             positive_details.append("x1.2")
         elif tickets >= 20:
-            positive_multiplier *= 1.15
+            bonus_sum += 0.15
             positive_details.append("x1.15")
         elif tickets >= 10:
-            positive_multiplier *= 1.1
+            bonus_sum += 0.1
             positive_details.append("x1.1")
 
         rank = ranks.get(stat.user_id, 0)
         if rank == 1:
-            positive_multiplier *= 1.2
+            bonus_sum += 0.2
             positive_details.append("x1.2")
         elif rank == 2:
-            positive_multiplier *= 1.1
+            bonus_sum += 0.1
             positive_details.append("x1.1")
         elif rank == 3:
-            positive_multiplier *= 1.05
+            bonus_sum += 0.05
             positive_details.append("x1.05")
 
         if sorted_by_tickets and stat == sorted_by_tickets[0]:
-            positive_multiplier *= 1.1
+            bonus_sum += 0.1
             positive_details.append("x1.1")
 
-        positive_multiplier = min(positive_multiplier, 1.75)
+        total_visible_multiplier = 1.0 + bonus_sum
+        total_visible_multiplier = min(total_visible_multiplier, 1.75)
 
-        negative_multiplier = 1.0
-        negative_details = []
-
-        final_salary = round(base_salary * positive_multiplier * negative_multiplier)
-
-        total_multiplier = positive_multiplier * negative_multiplier
+        final_salary = round(base_salary * total_visible_multiplier)
 
         results[stat.user_id] = {
             'base_salary': base_salary,
             'final_salary': final_salary,
-            'total_multiplier': total_multiplier,
-            'total_display': f"x{total_multiplier:.2f}".replace('.', ','),
+            'total_multiplier': total_visible_multiplier,
+            'total_display': f"x{total_visible_multiplier:.2f}".replace('.', ','),
             'rank': rank,
-            'rank_display': f"x1.2" if rank == 1 else
-            f"x1.1" if rank == 2 else
-            f"x1.05" if rank == 3 else "-",
+            'rank_display': "x1.2" if rank == 1 else
+                            "x1.1" if rank == 2 else
+                            "x1.05" if rank == 3 else "-",
             'position_display': "x1.3" if stat.user.access_level == 4 else
-            "x1.2" if stat.user.access_level == 3 else
-            "x1.1" if stat.user.access_level == 2 else "-",
+                                "x1.2" if stat.user.access_level == 3 else
+                                "x1.1" if stat.user.access_level == 2 else "-",
             'ticket_display': "x1.1" if 10 <= tickets < 20 else
-            "x1.15" if 20 <= tickets < 30 else
-            "x1.2" if 30 <= tickets < 40 else
-            "x1.25" if tickets >= 40 else "-",
+                              "x1.15" if 20 <= tickets < 30 else
+                              "x1.2" if 30 <= tickets < 40 else
+                              "x1.25" if tickets >= 40 else "-",
             'top_mod_display': "x1.1" if (sorted_by_tickets and stat == sorted_by_tickets[0]) else "-",
             'weeks_missed': stat.weeks_missed,
             'weeks_display': f"-{stat.weeks_missed * 5}%" if stat.weeks_missed > 0 else "-",
             'positive_details': positive_details,
-            'negative_details': negative_details
+            'negative_details': []
         }
 
     return results
@@ -763,17 +788,19 @@ def get_mod_stats():
             'user_id': stat.user_id,
             'punishments': stat.punishments,
             'tickets_closed': stat.tickets_closed,
+            'weeks_missed': stat.weeks_missed
         })
     else:
         return jsonify({
             'user_id': user_id,
             'punishments': 0,
             'tickets_closed': 0,
+            'weeks_missed': 0
         })
 
 
 @app.route('/calculate-salaries', methods=['POST'])
-@staff_required(access_level=5)
+@api_staff_required(access_level=5)
 def calculate_salaries_route():
     try:
         current_month = datetime.now().month
@@ -795,6 +822,7 @@ def calculate_salaries_route():
 
             salary = SalaryHistory(
                 user_id=user_id,
+                day=datetime.now().day,
                 month=current_month,
                 year=current_year,
                 base_salary=data['base_salary'],
@@ -878,6 +906,286 @@ def salary_history():
     html += '</tbody></table>'
 
     return jsonify({'html': html})
+
+
+@app.route('/purchase-shop')
+@staff_required()
+def purchase_shop():
+    user_requests = PurchaseRequest.query.filter_by(user_id=current_user.id).order_by(
+        PurchaseRequest.created_at.desc()).all()
+
+    pending_requests = []
+    if current_user.access_level >= 6:
+        pending_requests = PurchaseRequest.query.filter_by(status='pending').order_by(PurchaseRequest.created_at).all()
+
+    return render_template('purchase_shop.html',
+                           user_requests=user_requests,
+                           pending_requests=pending_requests,
+                           current_user=current_user)
+
+
+@app.route('/submit-purchase-request', methods=['POST'])
+@staff_required()
+def submit_purchase_request():
+    try:
+        mode = request.form.get('mode')
+        nickname = request.form.get('nickname')
+        item = request.form.get('item')
+        amount = int(request.form.get('amount'))
+
+        if not all([mode, nickname, item, amount]):
+            flash('Все поля обязательны для заполнения', 'danger')
+            return redirect(url_for('purchase_shop'))
+
+        if amount <= 0:
+            flash('Сумма покупки должна быть положительной', 'danger')
+            return redirect(url_for('purchase_shop'))
+
+        current_balance = int(current_user.salary) if current_user.salary and current_user.salary.isdigit() else 0
+        if current_balance < amount:
+            flash('Недостаточно средств на счете', 'danger')
+            return redirect(url_for('purchase_shop'))
+
+        purchase_request = PurchaseRequest(
+            user_id=current_user.id,
+            mode=mode,
+            nickname=nickname,
+            item=item,
+            amount=amount,
+            status='pending'
+        )
+
+        db.session.add(purchase_request)
+        db.session.commit()
+
+        flash('Заявка успешно отправлена на рассмотрение!', 'success')
+        return redirect(url_for('purchase_shop'))
+
+    except ValueError:
+        db.session.rollback()
+        flash('Неверный формат суммы', 'danger')
+        return redirect(url_for('purchase_shop'))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при отправке заявки: {str(e)}', 'danger')
+        return redirect(url_for('purchase_shop'))
+
+
+@app.route('/process-purchase-request/<int:request_id>', methods=['POST'])
+@staff_required(access_level=6)
+def process_purchase_request(request_id):
+    try:
+        action = request.form.get('action')
+        rejection_reason = request.form.get('rejection_reason', '')
+
+        purchase_request = PurchaseRequest.query.get_or_404(request_id)
+
+        if purchase_request.status != 'pending':
+            flash('Эта заявка уже обработана', 'warning')
+            return redirect(url_for('purchase_shop'))
+
+        if action == 'approve':
+            user = User.query.get(purchase_request.user_id)
+            current_balance = int(user.salary) if user.salary and user.salary.isdigit() else 0
+
+            if current_balance < purchase_request.amount:
+                flash('У пользователя недостаточно средств', 'danger')
+                return redirect(url_for('purchase_shop'))
+
+            user.salary = str(current_balance - purchase_request.amount)
+            purchase_request.status = 'approved'
+            flash('Заявка одобрена, средства списаны', 'success')
+
+        elif action == 'reject':
+            if not rejection_reason.strip():
+                flash('Укажите причину отказа', 'danger')
+                return redirect(url_for('purchase_shop'))
+
+            purchase_request.status = 'rejected'
+            purchase_request.rejection_reason = rejection_reason
+            flash('Заявка отклонена', 'info')
+
+        purchase_request.processed_by = current_user.id
+        purchase_request.processed_at = datetime.now()
+
+        db.session.commit()
+        return redirect(url_for('purchase_shop'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при обработке заявки: {str(e)}', 'danger')
+        return redirect(url_for('purchase_shop'))
+
+
+@app.route('/get-purchase-requests')
+@staff_required()
+def get_purchase_requests():
+    status_filter = request.args.get('status', 'all')
+
+    query = PurchaseRequest.query.filter_by(user_id=current_user.id)
+
+    if status_filter != 'all':
+        query = query.filter_by(status=status_filter)
+
+    requests = query.order_by(PurchaseRequest.created_at.desc()).all()
+
+    requests_data = []
+    for req in requests:
+        requests_data.append({
+            'id': req.id,
+            'mode': req.mode,
+            'nickname': req.nickname,
+            'item': req.item,
+            'amount': req.amount,
+            'status': req.status,
+            'rejection_reason': req.rejection_reason,
+            'created_at': req.created_at.strftime('%d.%m.%Y %H:%M'),
+            'processed_at': req.processed_at.strftime('%d.%m.%Y %H:%M') if req.processed_at else None
+        })
+
+    return jsonify({'requests': requests_data})
+
+
+@app.route('/vacation-requests')
+@staff_required()
+def vacation_requests():
+    user_requests = VacationRequest.query.filter_by(user_id=current_user.id).order_by(
+        VacationRequest.created_at.desc()).all()
+
+    pending_requests = []
+    if current_user.access_level >= 4:
+        pending_requests = VacationRequest.query.filter_by(status='pending').order_by(
+            VacationRequest.created_at).all()
+
+    return render_template('vacation_requests.html',
+                           user_requests=user_requests,
+                           pending_requests=pending_requests,
+                           current_user=current_user)
+
+
+@app.route('/submit-vacation-request', methods=['POST'])
+@staff_required()
+def submit_vacation_request():
+    try:
+        start_date_str = request.form.get('start_date')
+        end_date_str = request.form.get('end_date')
+        reason = request.form.get('reason')
+
+        if not all([start_date_str, end_date_str, reason]):
+            flash('Все поля обязательны для заполнения', 'danger')
+            return redirect(url_for('vacation_requests'))
+
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+
+        if start_date >= end_date:
+            flash('Дата окончания должна быть позже даты начала', 'danger')
+            return redirect(url_for('vacation_requests'))
+
+        if start_date < datetime.now().date():
+            flash('Дата начала не может быть в прошлом', 'danger')
+            return redirect(url_for('vacation_requests'))
+
+        existing_requests = VacationRequest.query.filter(
+            VacationRequest.user_id == current_user.id,
+            VacationRequest.status == 'pending',
+            VacationRequest.start_date <= end_date,
+            VacationRequest.end_date >= start_date
+        ).first()
+
+        if existing_requests:
+            flash('У вас уже есть активная заявка на отпуск в этот период', 'danger')
+            return redirect(url_for('vacation_requests'))
+
+        vacation_request = VacationRequest(
+            user_id=current_user.id,
+            start_date=start_date,
+            end_date=end_date,
+            reason=reason,
+            status='pending'
+        )
+
+        db.session.add(vacation_request)
+        db.session.commit()
+
+        flash('Заявка на отпуск успешно отправлена на рассмотрение!', 'success')
+        return redirect(url_for('vacation_requests'))
+
+    except ValueError:
+        db.session.rollback()
+        flash('Неверный формат даты', 'danger')
+        return redirect(url_for('vacation_requests'))
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при отправке заявки: {str(e)}', 'danger')
+        return redirect(url_for('vacation_requests'))
+
+
+@app.route('/process-vacation-request/<int:request_id>', methods=['POST'])
+@staff_required(access_level=4)
+def process_vacation_request(request_id):
+    try:
+        action = request.form.get('action')
+        rejection_reason = request.form.get('rejection_reason', '')
+
+        vacation_request = VacationRequest.query.get_or_404(request_id)
+
+        if vacation_request.status != 'pending':
+            flash('Эта заявка уже обработана', 'warning')
+            return redirect(url_for('vacation_requests'))
+
+        if action == 'approve':
+            vacation_request.status = 'approved'
+            flash('Заявка на отпуск одобрена', 'success')
+
+        elif action == 'reject':
+            if not rejection_reason.strip():
+                flash('Укажите причину отказа', 'danger')
+                return redirect(url_for('vacation_requests'))
+
+            vacation_request.status = 'rejected'
+            vacation_request.rejection_reason = rejection_reason
+            flash('Заявка на отпуск отклонена', 'info')
+
+        vacation_request.processed_by = current_user.id
+        vacation_request.processed_at = datetime.now()
+
+        db.session.commit()
+        return redirect(url_for('vacation_requests'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при обработке заявки: {str(e)}', 'danger')
+        return redirect(url_for('vacation_requests'))
+
+
+@app.route('/get-vacation-requests')
+@staff_required()
+def get_vacation_requests():
+    status_filter = request.args.get('status', 'all')
+
+    query = VacationRequest.query.filter_by(user_id=current_user.id)
+
+    if status_filter != 'all':
+        query = query.filter_by(status=status_filter)
+
+    requests = query.order_by(VacationRequest.created_at.desc()).all()
+
+    requests_data = []
+    for req in requests:
+        requests_data.append({
+            'id': req.id,
+            'start_date': req.start_date.strftime('%d.%m.%Y'),
+            'end_date': req.end_date.strftime('%d.%m.%Y'),
+            'reason': req.reason,
+            'status': req.status,
+            'rejection_reason': req.rejection_reason,
+            'created_at': req.created_at.strftime('%d.%m.%Y %H:%M'),
+            'processed_at': req.processed_at.strftime('%d.%m.%Y %H:%M') if req.processed_at else None,
+            'days': (req.end_date - req.start_date).days + 1
+        })
+
+    return jsonify({'requests': requests_data})
 
 
 @app.route('/api/staff/<string:member_id>', methods=['GET'])

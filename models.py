@@ -5,12 +5,44 @@ from datetime import datetime
 db = SQLAlchemy()
 
 
+class VacationRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.BigInteger, db.ForeignKey('user.id'), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    reason = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(20), default='pending')
+    rejection_reason = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    processed_at = db.Column(db.DateTime)
+    processed_by = db.Column(db.BigInteger, db.ForeignKey('user.id'))
+
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('vacation_requests', lazy=True))
+    processor = db.relationship('User', foreign_keys=[processed_by])
+
+
+class PurchaseRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.BigInteger, db.ForeignKey('user.id'), nullable=False)
+    mode = db.Column(db.String(100), nullable=False)
+    nickname = db.Column(db.String(100), nullable=False)
+    item = db.Column(db.Text, nullable=False)
+    amount = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(20), default='pending')
+    rejection_reason = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    processed_at = db.Column(db.DateTime)
+    processed_by = db.Column(db.BigInteger, db.ForeignKey('user.id'))
+
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('purchase_requests', lazy=True))
+    processor = db.relationship('User', foreign_keys=[processed_by])
+
+
 class ModeratorStats(db.Model):
     __tablename__ = 'moderator_stats'
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.BigInteger, db.ForeignKey('user.id'), nullable=False)
-    day = db.Column(db.Integer, nullable=False)
     month = db.Column(db.Integer, nullable=False)
     year = db.Column(db.Integer, nullable=False)
     punishments = db.Column(db.Integer, default=0)
@@ -20,7 +52,7 @@ class ModeratorStats(db.Model):
 
     user = db.relationship('User', backref=db.backref('stats', lazy=True))
 
-    __table_args__ = (db.UniqueConstraint('user_id', 'day', 'month', 'year', name='unique_user_day_month_year'),)
+    __table_args__ = (db.UniqueConstraint('user_id', 'month', 'year', name='unique_user_month_year'),)
 
 
 class SalaryHistory(db.Model):

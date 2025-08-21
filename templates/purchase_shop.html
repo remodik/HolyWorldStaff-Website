@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>HolyStaff Shop</h2>
+
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5>📋 Правила покупок</h5>
+        </div>
+        <div class="card-body">
+            <h6>✅ Что МОЖНО покупать:</h6>
+            <ul>
+                <li>Покупать кому угодно любые вещи в сайте без дополнительной услуги переноса доната</li>
+                <li>Покупать докуп доната, но к цене нужно добавить +20% цены</li>
+            </ul>
+
+            <h6>❌ Что НЕЛЬЗЯ покупать:</h6>
+            <ul>
+                <li>Разбан</li>
+                <li>Размут</li>
+                <li>Коины на лайт</li>
+                <li>Покупного стажера</li>
+                <li>Кастомный донат чаще чем раз в год</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">📝 Подать заявку на покупку</h5>
+            <button class="btn btn-light btn-sm" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#purchaseForm" aria-expanded="false"
+                    aria-controls="purchaseForm">
+                Показать форму
+            </button>
+        </div>
+
+        <div class="collapse" id="purchaseForm">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('submit_purchase_request') }}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Режим</label>
+                            <label>
+                                <input type="text" class="form-control" name="mode" required
+                                       placeholder="Lite / Классик">
+                            </label>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Игровой ник:</label>
+                            <label>
+                                <input type="text" class="form-control" name="nickname" required
+                                       placeholder="Ваш ник в игре">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Что покупаете:</label>
+                        <label>
+<textarea class="form-control" name="item" rows="3" required
+          placeholder="Подробно опишите что хотите купить"></textarea>
+                        </label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Сумма покупки:</label>
+                        <div class="input-group">
+                            <span class="input-group-text"></span>
+                            <label>
+                                <input type="number" class="form-control" name="amount" required
+                                       min="1" placeholder="Точное число">
+                            </label>
+                        </div>
+                        <small class="form-text text-muted">
+                            Ваш текущий баланс: <strong>{{ current_user.salary or '0' }}</strong>
+                        </small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        📨 Отправить на рассмотрение
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% if current_user.access_level >= 6 and pending_requests %}
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5>⏳ Заявки на рассмотрении</h5>
+        </div>
+        <div class="card-body">
+            {% for request in pending_requests %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h6>Заявка #{{ request.id }}</h6>
+                    <p><strong>От:</strong> {{ request.user.username }}</p>
+                    <p><strong>Режим:</strong> {{ request.mode }}</p>
+                    <p><strong>Ник:</strong> {{ request.nickname }}</p>
+                    <p><strong>Покупка:</strong> {{ request.item }}</p>
+                    <p><strong>Сумма:</strong> {{ request.amount }}</p>
+                    <p><strong>Его баланс:</strong> {{ request.user.salary or '0' }}</p>
+
+                    <form method="POST" action="{{ url_for('process_purchase_request', request_id=request.id) }}">
+                        <div class="mb-2">
+                            <label class="form-label">Причина отказа (если отклоняете):</label>
+                            <label>
+<textarea class="form-control" name="rejection_reason" rows="2"
+          placeholder="Укажите причину отказа..."></textarea>
+                            </label>
+                        </div>
+
+                        <div class="btn-group">
+                            <button type="submit" name="action" value="approve"
+                                    class="btn btn-success">✅ Одобрить</button>
+                            <button type="submit" name="action" value="reject"
+                                    class="btn btn-danger">❌ Отклонить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header bg-info text-white">
+            <h5>📊 История ваших заявок</h5>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label for="statusFilter"></label><select class="form-select" id="statusFilter" onchange="filterRequests()">
+                    <option value="all">Все статусы</option>
+                    <option value="pending">На рассмотрении</option>
+                    <option value="approved">Одобренные</option>
+                    <option value="rejected">Отклоненные</option>
+                </select>
+            </div>
+
+            <div id="requestsList">
+                {% for request in user_requests %}
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6>Заявка #{{ request.id }}</h6>
+                                <p><strong>Статус:</strong>
+                                    {% if request.status == 'pending' %}
+                                        <span class="badge bg-warning">⏳ На рассмотрении</span>
+                                    {% elif request.status == 'approved' %}
+                                        <span class="badge bg-success">✅ Одобрено</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">❌ Отклонено</span>
+                                    {% endif %}
+                                </p>
+                                <p><strong>Режим:</strong> {{ request.mode }}</p>
+                                <p><strong>Ник:</strong> {{ request.nickname }}</p>
+                                <p><strong>Покупка:</strong> {{ request.item }}</p>
+                                <p><strong>Сумма:</strong> {{ request.amount }}</p>
+                                <p><strong>Дата:</strong> {{ request.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+
+                                {% if request.status == 'rejected' and request.rejection_reason %}
+                                <p><strong>Причина отказа:</strong>
+                                    <span class="text-danger">{{ request.rejection_reason }}</span>
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted">У вас пока нет заявок на покупки.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function filterRequests() {
+    const status = document.getElementById('statusFilter').value;
+
+    fetch(`/get-purchase-requests?status=${status}`)
+        .then(response => response.json())
+        .then(data => {
+            const requestsList = document.getElementById('requestsList');
+            requestsList.innerHTML = '';
+
+            if (data.requests.length === 0) {
+                requestsList.innerHTML = '<p class="text-muted">Заявок не найдено.</p>';
+                return;
+            }
+
+            data.requests.forEach(request => {
+                let statusBadge;
+                if (request.status === 'pending') {
+                    statusBadge = '<span class="badge bg-warning">⏳ На рассмотрении</span>';
+                } else if (request.status === 'approved') {
+                    statusBadge = '<span class="badge bg-success">✅ Одобрено</span>';
+                } else {
+                    statusBadge = '<span class="badge bg-danger">❌ Отклонено</span>';
+                }
+
+                let rejectionReason = '';
+                if (request.status === 'rejected' && request.rejection_reason) {
+                    rejectionReason = `<p><strong>Причина отказа:</strong>
+                        <span class="text-danger">${request.rejection_reason}</span></p>`;
+                }
+
+                requestsList.innerHTML += `
+                    <div class="card mb-2">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6>Заявка #${request.id}</h6>
+                                    <p><strong>Статус:</strong> ${statusBadge}</p>
+                                    <p><strong>Режим:</strong> ${request.mode}</p>
+                                    <p><strong>Ник:</strong> ${request.nickname}</p>
+                                    <p><strong>Покупка:</strong> ${request.item}</p>
+                                    <p><strong>Сумма:</strong> ${request.amount}</p>
+                                    <p><strong>Дата:</strong> ${request.created_at}</p>
+                                    ${rejectionReason}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        });
+}
+</script>
+{% endblock %}

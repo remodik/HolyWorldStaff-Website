@@ -55,94 +55,91 @@
     {% endif %}
 
     <div class="card">
-        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">Расчет зарплаты за {{ current_month }}/{{ current_year }}</h4>
-            <div>
-                {% if current_user.access_level >= 5 %}
-                <button class="btn btn-success me-2" onclick="calculateSalaries()">
-                    <i class="bi bi-calculator me-1"></i>Рассчитать
-                </button>
-                <button class="btn btn-warning" onclick="payoutSalaries()">
-                    <i class="bi bi-cash-coin me-1"></i>Выдать
-                </button>
-                {% endif %}
-            </div>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover mb-0">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>Модератор</th>
-                            <th>Должность</th>
-                            <th>Общее НК</th>
-                            <th>Скорр. НК</th>
-                            <th>Тикеты</th>
-                            <th>Топ по НК</th>
-                            <th>Пропущено недель</th>
-                            <th>% За тикеты</th>
-                            <th>% За должность</th>
-                            <th>% За Топ модера</th>
-                            <th>% За топ</th>
-                            <th>ЗП за НК</th>
-                            <th>Общий %</th>
-                            <th>Итоговая ЗП</th>
-                            {% if current_user.access_level >= 5 %}
-                            <th></th>
-                            {% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for stat in current_stats %}
-                        {% set calc = calculated_data[stat.user_id] %}
-                        <tr>
-                            <td class="text-center">
-                                {{ stat.user.nickname }}
-                            </td>
-                            <td>
-                                {% if stat.user.access_level == 6 %}
-                                    <span class="badge"
-                                          style="background-color: #9e6bff; color: white">Куратор</span>
-                                {% elif stat.user.access_level == 5 %}
-                                    <span class="badge" style="background-color: #965f7f; color: white">Зам.Куратора</span>
-                                {% elif stat.user.access_level == 4 %}
-                                    <span class="badge" style="background-color: #00ff22; color: darkblue">Гл.Модератор</span>
-                                {% elif stat.user.access_level == 3 %}
-                                    <span class="badge" style="background-color: #ff0000; color: white">Ст.Модератор</span>
-                                {% elif stat.user.access_level == 2 %}
-                                    <span class="badge" style="background-color: #78f4db; color: black">Модератор</span>
-                                {% elif stat.user.access_level == 1 %}
-                                    <span class="badge" style="background-color: #40e0d0; color: white">Мл.Модератор</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-center">{{ stat.punishments }}</td>
-                            <td class="text-center">{{ calc.adjusted_punishments if calc.adjusted_punishments else stat.punishments }}</td>
-                            <td class="text-center">{{ stat.tickets_closed }}</td>
-                            <td class="text-center">{{ calc.rank if calc.rank > 0 else '-' }}</td>
-                            <td class="text-center">{{ stat.weeks_missed if stat.weeks_missed > 0 else '-' }}</td>
-                            <td class="text-center">{{ calc.ticket_display }}</td>
-                            <td class="text-center">{{ calc.position_display }}</td>
-                            <td class="text-center">{{ calc.top_mod_display }}</td>
-                            <td class="text-center">{{ calc.rank_display }}</td>
-                            <td class="text-center">{{ calc.base_salary }}</td>
-                            <td class="text-center">{{ calc.total_display }}</td>
-                            <td class="text-center fw-bold">{{ calc.final_salary }}</td>
-                            {% if current_user.access_level >= 5 %}
-                            <td class="text-center">
-                                <button class="btn btn-sm btn-outline-warning"
-                                        onclick="editStats({{ stat.user_id }})"
-                                        title="Редактировать">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                            </td>
-                            {% endif %}
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h4 class="mb-0">Расчет зарплаты за {{ current_month }}/{{ current_year }}</h4>
+        <div>
+            {% if current_user.access_level >= 5 %}
+            <button class="btn btn-success me-2" onclick="calculateSalaries()">
+                <i class="bi bi-calculator me-1"></i>Рассчитать
+            </button>
+            <button class="btn btn-warning" onclick="payoutSalaries()">
+                <i class="bi bi-cash-coin me-1"></i>Выдать
+            </button>
+            {% endif %}
         </div>
     </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Модератор</th>
+                        <th>Должность</th>
+                        <th>Общее НК</th>
+                        <th>Тикеты</th>
+                        <th>Топ по НК</th>
+                        <th>Пропущено недель</th>
+                        <th>% За тикеты</th>
+                        <th>% За должность</th>
+                        <th>% За Топ модера</th>
+                        <th>% За топ</th>
+                        <th>ЗП за НК</th>
+                        <th>Общий %</th>
+                        <th>Итоговая ЗП</th>
+                        {% if current_user.access_level >= 5 %}
+                        <th></th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in current_stats %}
+                    {% set calc = calculated_data[stat.user_id] %}
+                    <tr>
+                        <td class="text-center">
+                            {{ stat.user.nickname }}
+                        </td>
+                        <td>
+                            {% if stat.user.access_level == 6 %}
+                                <span class="badge" style="background-color: #9e6bff; color: white">Куратор</span>
+                            {% elif stat.user.access_level == 5 %}
+                                <span class="badge" style="background-color: #965f7f; color: white">Зам.Куратора</span>
+                            {% elif stat.user.access_level == 4 %}
+                                <span class="badge" style="background-color: #00ff22; color: darkblue">Гл.Модератор</span>
+                            {% elif stat.user.access_level == 3 %}
+                                <span class="badge" style="background-color: #ff0000; color: white">Ст.Модератор</span>
+                            {% elif stat.user.access_level == 2 %}
+                                <span class="badge" style="background-color: #78f4db; color: black">Модератор</span>
+                            {% elif stat.user.access_level == 1 %}
+                                <span class="badge" style="background-color: #40e0d0; color: white">Мл.Модератор</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ stat.punishments }}</td>
+                        <td class="text-center">{{ stat.tickets_closed }}</td>
+                        <td class="text-center">{{ calc.rank if calc.rank > 0 else '-' }}</td>
+                        <td class="text-center">{{ stat.weeks_missed if stat.weeks_missed > 0 else '-' }}</td>
+                        <td class="text-center">{{ calc.ticket_display }}</td>
+                        <td class="text-center">{{ calc.position_display }}</td>
+                        <td class="text-center">{{ calc.top_mod_display }}</td>
+                        <td class="text-center">{{ calc.rank_display }}</td>
+                        <td class="text-center">{{ calc.base_salary }}</td>
+                        <td class="text-center">{{ calc.total_display }}</td>
+                        <td class="text-center fw-bold">{{ calc.final_salary }}</td>
+                        {% if current_user.access_level >= 5 %}
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-outline-warning"
+                                    onclick="editStats({{ stat.user_id }})"
+                                    title="Редактировать">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
     <ul class="nav nav-tabs mt-4" id="salaryTabs" role="tablist">
         <li class="nav-item">
@@ -215,54 +212,61 @@
     }
 
     function calculateSalaries() {
-        if (!confirm('Рассчитать и сохранить зарплаты за текущий месяц?')) return;
+      if (!confirm('Рассчитать и сохранить зарплаты за текущий месяц?')) return;
 
-        fetch('/calculate-salaries', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-KEY': '123'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Зарплаты успешно рассчитаны!');
-                location.reload();
-            } else {
-                alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка:', error);
-            alert('Ошибка расчета зарплат');
-        });
+      fetch('/calculate-salaries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-API-KEY': '123'
+        }
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          alert('Зарплаты успешно рассчитаны!');
+          location.reload();
+        } else {
+          alert('Ошибка: ' + (d.error || 'Неизвестная ошибка'));
+        }
+      })
+      .catch(err => {
+        console.error('Ошибка:', err);
+        alert('Ошибка расчёта зарплат');
+      });
     }
 
     function payoutSalaries() {
-        if (!confirm('Выдать зарплаты всем модераторам за текущий месяц?')) return;
+      if (!confirm('Выдать зарплаты всем модераторам за текущий месяц?')) return;
 
-        fetch('/payout-salaries', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-KEY': '123'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Зарплаты успешно выданы!');
-                location.reload();
-            } else {
-                alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-            }
-        })
-        .catch(error => {
-            console.error('Ошибка:', error);
-            alert('Ошибка выдачи зарплат');
-        });
+      fetch('/payout-salaries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-API-KEY': '123'
+        }
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          if (d.updated === 0) {
+            alert('Нечего выдавать: сначала нужно рассчитать ЗП.');
+          } else {
+            alert(`Зарплата выдана ${d.updated} сотрудникам.`);
+          }
+          location.reload();
+        } else {
+          alert('Ошибка: ' + (d.error || 'Неизвестная ошибка'));
+        }
+      })
+      .catch(err => {
+        console.error('Ошибка:', err);
+        alert('Ошибка выдачи зарплат');
+      });
     }
+
 
     function loadSalaryHistory() {
         const month = document.getElementById('historyMonth').value;
