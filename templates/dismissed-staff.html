@@ -1,0 +1,706 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div id="userAuthData"
+         data-access-level="{{ current_user.access_level if current_user.is_authenticated else 0 }}"
+         style="display: none;"></div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0 text-white">
+            <i class="bi bi-person-x-fill me-2 text-warning"></i>
+            Снятые сотрудники HolyWorld
+        </h2>
+        <a href="{{ url_for('staff_list') }}" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left me-1"></i> К активным сотрудникам
+        </a>
+    </div>
+
+    {% if dismissed_members %}
+    <div class="card border-dark shadow-lg">
+        <div class="card-header bg-dark text-white py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-list-check me-2"></i>
+                    Список снятых сотрудников
+                </h5>
+                <span class="badge bg-warning text-dark fs-6">
+                    <i class="bi bi-people-fill me-1"></i>
+                    {{ dismissed_members|length }}
+                </span>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover table-striped mb-0">
+                    <thead class="table-secondary">
+                        <tr>
+                            <th class="ps-4">Сотрудник</th>
+                            <th>Бывшая должность</th>
+                            <th>Discord</th>
+                            <th class="text-center">Выговоры</th>
+                            <th class="text-center">Дата снятия</th>
+                            <th>Причина</th>
+                            <th class="text-center">ВКонтакте</th>
+                            {% if current_user.access_level >= 4 %}
+                            <th class="text-center pe-4">Действия</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for member in dismissed_members %}
+                            {% if member.access_level == 0 and member.dismissal_date is not none %}
+                            <tr data-member-id="{{ member.id }}" class="align-middle">
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center">
+                                        {% if member.avatar %}
+                                            <img src="{{ member.avatar }}" alt="Аватар"
+                                                 class="rounded-circle me-3 border border-secondary"
+                                                 width="48" height="48" style="object-fit: cover;">
+                                        {% else %}
+                                            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3"
+                                                 style="width: 48px; height: 48px;">
+                                                <i class="bi bi-person-fill text-light" style="font-size: 1.5rem;"></i>
+                                            </div>
+                                        {% endif %}
+                                        <div>
+                                            <div class="fw-semibold">
+                                                {% if member.vk_link %}
+                                                    <a href="{{ member.vk_link }}" target="_blank"
+                                                       class="text-decoration-none text-white">
+                                                        {{ member.full_name|default('Не указано', true) }}
+                                                    </a>
+                                                {% else %}
+                                                    {{ member.full_name|default('Не указано', true) }}
+                                                {% endif %}
+                                            </div>
+                                            <small class="text-muted">{{ member.nickname|default('Ник не указан', true) }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if member.previous_access_level == 6 %}
+                                    <span class="badge bg-purple text-white px-3 py-2">
+                                        <i class="bi me-1"></i>Куратор
+                                    </span>
+                                    {% elif member.previous_access_level == 5 %}
+                                    <span class="badge bg-pink text-white px-3 py-2">
+                                        <i class="bi me-1"></i>Зам.Куратора
+                                    </span>
+                                    {% elif member.previous_access_level == 4 %}
+                                    <span class="badge bg-success text-dark px-3 py-2">
+                                        <i class="bi me-1"></i>Гл.Модератор
+                                    </span>
+                                    {% elif member.previous_access_level == 3 %}
+                                    <span class="badge bg-danger text-white px-3 py-2">
+                                        <i class="bi me-1"></i>Ст.Модератор
+                                    </span>
+                                    {% elif member.previous_access_level == 2 %}
+                                    <span class="badge bg-info text-dark px-3 py-2">
+                                        <i class="bi me-1"></i>Модератор
+                                    </span>
+                                    {% elif member.previous_access_level == 1 %}
+                                    <span class="badge bg-cyan text-white px-3 py-2">
+                                        <i class="bi me-1"></i>Мл.Модератор
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-secondary px-3 py-2">Неизвестно</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi bi-discord me-2 text-primary"></i>
+                                        <span class="font-monospace">{{ member.username|default('Не указан', true) }}</span>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    {% set warnings = member.warnings.split('/') if member.warnings else ['0', '0'] %}
+                                    <div class="d-flex flex-column gap-1">
+                                        <span class="badge bg-danger">
+                                            <i class="bi me-1"></i>
+                                            Выговоры {{ warnings[0] }}/2
+                                        </span>
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="bi me-1"></i>
+                                            Предупреждения {{ warnings[1] }}/3
+                                        </span>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-secondary px-3 py-2">
+                                        <i class="bi bi-calendar-x me-1"></i>
+                                        {{ member.dismissal_date.strftime('%d.%m.%Y') if member.dismissal_date else '-' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if member.dismissal_reason %}
+                                        <span class="badge bg-info text-dark cursor-pointer"
+                                              data-bs-toggle="tooltip"
+                                              title="{{ member.dismissal_reason }}"
+                                              style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                            <i class="bi bi-chat-dots me-1"></i>
+                                            {{ member.dismissal_reason|truncate(25) }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted small">
+                                            <i class="bi bi-dash-circle me-1"></i>Не указана
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if member.vk_link %}
+                                    <a href="{{ member.vk_link }}" target="_blank"
+                                       class="btn btn-sm btn-outline-primary"
+                                       data-bs-toggle="tooltip" title="Перейти в ВК">
+                                        <i class="bi bi-link-45deg"></i>
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                {% if current_user.access_level >= 4 %}
+                                <td class="text-center pe-4">
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-outline-info"
+                                                onclick="viewMemberDetails('{{ member.id }}')"
+                                                data-bs-toggle="tooltip" title="Подробная информация">
+                                            <i class="bi bi-info-circle"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning"
+                                                onclick="editDismissedMember('{{ member.id }}')"
+                                                data-bs-toggle="tooltip" title="Редактировать">
+                                            <i class="bi bi-gear"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-success"
+                                                onclick="rehireMember('{{ member.id }}')"
+                                                data-bs-toggle="tooltip" title="Принять на должность">
+                                            <i class="bi bi-person-plus"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-dark text-white py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="text-muted">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Всего записей: {{ dismissed_members|length }}
+                </div>
+                {% if current_user.access_level >= 4 %}
+                <button class="btn btn-outline-warning" onclick="clearDismissedList()">
+                    <i class="bi bi-trash3 me-1"></i> Очистить список
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="text-center py-5">
+        <div class="card border-0 bg-dark text-white shadow">
+            <div class="card-body py-5">
+                <i class="bi bi-people display-1 text-muted"></i>
+                <h3 class="mt-4 text-white">Нет снятых сотрудников</h3>
+                <p class="text-muted mb-4">Список снятых с должности сотрудников пуст</p>
+                <a href="{{ url_for('staff_list') }}" class="btn btn-primary">
+                    <i class="bi bi-arrow-left me-1"></i> Вернуться к активным сотрудникам
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="modal fade" id="editDismissedModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header border-warning">
+                    <h5 class="modal-title text-warning">
+                        <i class="bi bi-gear me-2"></i>
+                        Редактирование снятого сотрудника
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="editDismissedForm">
+                    <input type="hidden" name="member_id" id="editDismissedMemberId">
+                    <div class="modal-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Должность:</label>
+                                <label for="editPosition"></label><select class="form-select" name="position" id="editPosition">
+                                    <option value="1">Мл.Модератор дискорда</option>
+                                    <option value="2">Модератор дискорда</option>
+                                    <option value="3">Ст.Модератор дискорда</option>
+                                    <option value="4">Гл.Модератор дискорда</option>
+                                    <option value="5">Зам.Куратора дискорда</option>
+                                    <option value="6">Куратор дискорда</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Причина снятия:</label>
+                                <label for="editDismissalReason"></label><input type="text" class="form-control" name="dismissal_reason" id="editDismissalReason" readonly>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <label class="form-label fw-bold">Дополнение к снятию:</label>
+                                <label for="editDismissalNotes"></label><textarea class="form-control" name="dismissal_notes" id="editDismissalNotes" rows="3" placeholder="Дополнительная информация о снятии"></textarea>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Дата принятия:</label>
+                                <label for="editJoinDate"></label><input type="date" class="form-control" name="join_date" id="editJoinDate">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label fw-bold">Дата снятия:</label>
+                                <label for="editDismissalDate"></label><input type="date" class="form-control" name="dismissal_date" id="editDismissalDate">
+                            </div>
+
+                            <div class="col-12">
+                                <h6 class="fw-bold mt-4 mb-3">История выговоров:</h6>
+                                <div id="warningsHistory">
+                                    <div class="warning-entry mb-2">
+                                        <div class="row g-2">
+                                            <div class="col-md-6">
+                                                <label>
+                                                    <input type="date" class="form-control" name="warning_dates[]" placeholder="Дата">
+                                                </label>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label>
+                                                    <input type="text" class="form-control" name="warning_reasons[]" placeholder="Причина выговора">
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="addWarningField()">
+                                    <i class="bi bi-plus"></i> Добавить выговор
+                                </button>
+                            </div>
+
+                            <div class="col-12 mt-4">
+                                <h6 class="fw-bold mb-3">Информация о модераторе:</h6>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Discord ID:</label>
+                                        <label for="editDiscordId"></label><input type="text" class="form-control" name="discord_id" id="editDiscordId">
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">ВКонтакте:</label>
+                                        <label for="editVkLink"></label><input type="url" class="form-control" name="vk_link" id="editVkLink" placeholder="https://vk.com/username">
+                                    </div>
+                                    <div class="col-12 mb-3">
+                                        <label class="form-label">Почта:</label>
+                                        <label for="editEmail"></label><input type="email" class="form-control" name="email" id="editEmail" placeholder="email@example.com">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-warning">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-lg me-1"></i> Отмена
+                        </button>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-check-lg me-1"></i> Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно принятия на должность -->
+    <div class="modal fade" id="rehireModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header border-success">
+                    <h5 class="modal-title text-success">
+                        <i class="bi bi-person-plus me-2"></i>
+                        Принять на должность
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="rehireForm">
+                    <input type="hidden" name="member_id" id="rehireMemberId">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Должность:</label>
+                            <label for="rehirePosition"></label><select class="form-select" name="access_level" id="rehirePosition" required>
+                                <option value="1">Мл.Модератор дискорда</option>
+                                <option value="2">Модератор дискорда</option>
+                                <option value="3">Ст.Модератор дискорда</option>
+                                <option value="4">Гл.Модератор дискорда</option>
+                                <option value="5">Зам.Куратора дискорда</option>
+                                <option value="6">Куратор дискорда</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Дата принятия:</label>
+                            <label for="rehireJoinDate"></label><input type="date" class="form-control" name="join_date" id="rehireJoinDate" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Примечание:</label>
+                            <label>
+                                <textarea class="form-control" name="notes" rows="3" placeholder="Дополнительная информация о принятии"></textarea>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-success">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="bi bi-x-lg me-1"></i> Отмена
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-person-plus me-1"></i> Принять
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">
+                        <i class="bi bi-person-badge me-2"></i>
+                        Подробная информация
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold text-primary">Имя Фамилия:</label>
+                            <p id="detailFullName" class="form-control-plaintext text-white">—</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold text-primary">Ник:</label>
+                            <p id="detailNickname" class="form-control-plaintext text-white">—</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold text-primary">Discord:</label>
+                            <p id="detailUsername" class="form-control-plaintext text-white">—</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold text-primary">Бывшая должность:</label>
+                            <p id="detailPosition" class="form-control-plaintext text-white">—</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold text-primary">Выговоры/Предупреждения:</label>
+                            <p id="detailWarnings" class="form-control-plaintext text-white">—</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold text-primary">Дата поступления:</label>
+                            <p id="detailJoinDate" class="form-control-plaintext text-white">—</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold text-primary">Дата снятия:</label>
+                            <p id="detailDismissalDate" class="form-control-plaintext text-white">—</p>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label fw-bold text-primary">Причина снятия:</label>
+                            <p id="detailDismissalReason" class="form-control-plaintext text-muted">—</p>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label fw-bold text-primary">ВКонтакте:</label>
+                            <p id="detailVkLink" class="form-control-plaintext">—</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-lg me-1"></i> Закрыть
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="clearModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header border-warning">
+                    <h5 class="modal-title text-warning">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Очистка списка
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-octagon-fill me-2"></i>
+                        <strong>Внимание!</strong> Это действие невозможно отменить.
+                    </div>
+                    <p>Вы уверены, что хотите полностью очистить список снятых сотрудников?</p>
+                    <p class="text-muted">Все записи о снятых сотрудниках будут удалены из системы.</p>
+                </div>
+                <div class="modal-footer border-warning">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i> Отмена
+                    </button>
+                    <button type="button" class="btn btn-danger" onclick="confirmClearDismissed()">
+                        <i class="bi bi-trash3 me-1"></i> Очистить список
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .bg-purple {
+            background: linear-gradient(45deg, #6f42c1, #9e6bff);
+        }
+
+        .bg-pink {
+            background: linear-gradient(45deg, #d63384, #e685b5);
+        }
+
+        .bg-cyan {
+            background: linear-gradient(45deg, #0dcaf0, #25d2ff);
+        }
+
+        .table-striped tbody tr:nth-of-type(odd) {
+            background-color: rgba(255,255,255,0.05);
+        }
+
+        .table-hover tbody tr:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        .cursor-pointer {
+            cursor: pointer;
+        }
+
+        .font-monospace {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+
+        .table-success {
+            background-color: rgba(25, 135, 84, 0.1) !important;
+        }
+
+        .table-success:hover {
+            background-color: rgba(25, 135, 84, 0.2) !important;
+        }
+    </style>
+
+    <script>
+        function editDismissedMember(memberId) {
+            fetch(`/get-staff-member?id=${memberId}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('editDismissedMemberId').value = data.id;
+                    document.getElementById('editPosition').value = data.previous_access_level || '1';
+                    document.getElementById('editDismissalReason').value = data.dismissal_reason || '';
+                    document.getElementById('editJoinDate').value = data.join_date || '';
+                    document.getElementById('editDismissalDate').value = data.dismissal_date || '';
+                    document.getElementById('editVkLink').value = data.vk_link || '';
+                    document.getElementById('editDiscordId').value = data.id || '';
+
+                    const modal = new bootstrap.Modal(document.getElementById('editDismissedModal'));
+                    modal.show();
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Ошибка загрузки данных: ' + error.message);
+                });
+        }
+
+        function rehireMember(memberId) {
+            document.getElementById('rehireMemberId').value = memberId;
+            document.getElementById('rehireJoinDate').value = new Date().toISOString().split('T')[0];
+
+            const modal = new bootstrap.Modal(document.getElementById('rehireModal'));
+            modal.show();
+        }
+
+        function addWarningField() {
+            const container = document.getElementById('warningsHistory');
+            const newEntry = document.createElement('div');
+            newEntry.className = 'warning-entry mb-2';
+            newEntry.innerHTML = `
+                <div class="row g-2">
+                    <div class="col-md-6">
+                        <input type="date" class="form-control" name="warning_dates[]" placeholder="Дата">
+                    </div>
+                    <div class="col-md-6">
+                        <input type="text" class="form-control" name="warning_reasons[]" placeholder="Причина выговора">
+                    </div>
+                </div>
+            `;
+            container.appendChild(newEntry);
+        }
+
+        document.getElementById('editDismissedForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+
+            fetch('/update-dismissed-member', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': '123'
+                },
+                body: JSON.stringify(Object.fromEntries(formData))
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('success', 'Данные обновлены');
+                    bootstrap.Modal.getInstance(document.getElementById('editDismissedModal')).hide();
+                } else {
+                    showToast('error', 'Ошибка: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                showToast('error', 'Ошибка при обновлении: ' + error.message);
+            });
+        });
+
+        document.getElementById('rehireForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+
+            fetch('/rehire-staff-member', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': '123'
+                },
+                body: JSON.stringify(Object.fromEntries(formData))
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('success', 'Сотруднику выданы роли и права');
+                    bootstrap.Modal.getInstance(document.getElementById('rehireModal')).hide();
+
+                    const memberRow = document.querySelector(`tr[data-member-id="${formData.get('member_id')}"]`);
+                    if (memberRow) {
+                        memberRow.classList.add('table-success');
+
+                        const accessLevel = formData.get('access_level');
+                        const positionCell = memberRow.querySelector('td:nth-child(2)');
+                        if (positionCell) {
+                            const positionNames = {
+                                6: "Куратор дискорда",
+                                5: "Зам.Куратора дискорда",
+                                4: "Гл.Модератор дискорда",
+                                3: "Ст.Модератор дискорда",
+                                2: "Модератор дискорда",
+                                1: "Мл.Модератор дискорда"
+                            };
+                            positionCell.innerHTML = `<span class="badge bg-success">${positionNames[accessLevel] || 'Неизвестно'}</span>`;
+                        }
+                    }
+                } else {
+                    showToast('error', 'Ошибка: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                showToast('error', 'Ошибка при принятии: ' + error.message);
+            });
+        });
+
+        function viewMemberDetails(memberId) {
+            fetch(`/get-staff-member?id=${memberId}`)
+                .then(response => {
+                    if (!response.ok) throw new Error('Ошибка сети');
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById('detailFullName').textContent = data.full_name || 'Не указано';
+                    document.getElementById('detailNickname').textContent = data.nickname || 'Не указан';
+                    document.getElementById('detailUsername').textContent = data.username || 'Не указан';
+                    document.getElementById('detailWarnings').textContent = data.warnings || '0/0';
+                    document.getElementById('detailJoinDate').textContent = data.join_date || 'Не указана';
+                    document.getElementById('detailDismissalDate').textContent = data.dismissal_date || 'Не указана';
+                    document.getElementById('detailDismissalReason').textContent = data.dismissal_reason || 'Не указана';
+
+                    if (data.vk_link) {
+                        document.getElementById('detailVkLink').innerHTML =
+                            `<a href="${data.vk_link}" target="_blank" class="text-decoration-none text-primary">
+                                <i class="bi bi-link-45deg me-1"></i>${data.vk_link}
+                             </a>`;
+                    } else {
+                        document.getElementById('detailVkLink').innerHTML =
+                            '<span class="text-muted">Не указана</span>';
+                    }
+
+                    const positionNames = {
+                        6: "Куратор дискорда",
+                        5: "Зам.Куратора дискорда",
+                        4: "Гл.Модератор дискорда",
+                        3: "Ст.Модератор дискорда",
+                        2: "Модератор дискорда",
+                        1: "Мл.Модератор дискорда"
+                    };
+                    document.getElementById('detailPosition').textContent =
+                        positionNames[data.previous_access_level] || 'Неизвестная должность';
+
+                    const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+                    modal.show();
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Ошибка загрузки данных: ' + error.message);
+                });
+        }
+
+        function clearDismissedList() {
+            const modal = new bootstrap.Modal(document.getElementById('clearModal'));
+            modal.show();
+        }
+
+        function confirmClearDismissed() {
+            fetch('/clear-dismissed-list', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': '123'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('success', 'Список снятых сотрудников очищен');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast('error', 'Ошибка: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                showToast('error', 'Ошибка при очистке: ' + error.message);
+            });
+        }
+
+        function showToast(type, message) {
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            new bootstrap.Toast(toast).show();
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl)
+            });
+        });
+    </script>
+</div>
+{% endblock %}

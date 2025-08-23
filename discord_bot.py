@@ -117,7 +117,9 @@ def get_user_access_level(user_id: int) -> int:
     if not member:
         return 0
 
-    if any(role.id == Config.DISCORD_CUR_ROLE_ID for role in member.roles):
+    if any(role.id == Config.DISCORD_ADMIN_ROLE_ID for role in member.roles):
+        return 7
+    elif any(role.id == Config.DISCORD_CUR_ROLE_ID for role in member.roles):
         return 6
     elif any(role.id == Config.DISCORD_ZAMCUR_ROLE_ID for role in member.roles):
         return 5
@@ -130,6 +132,48 @@ def get_user_access_level(user_id: int) -> int:
     elif any(role.id == Config.DISCORD_MLMOD_ROLE_ID for role in member.roles):
         return 1
     return 0
+
+
+async def remove_staff_roles(user_id):
+    try:
+        guild = bot.get_guild(1315002924048318506)
+        member = guild.get_member(int(user_id))
+
+        if member:
+            staff_roles = [1398628811586801754, 1315002924048318511]
+
+            for role_id in staff_roles:
+                role = guild.get_role(role_id)
+                if role and role in member.roles:
+                    await member.remove_roles(role)
+                    print(f"Снята роль {role.name} с пользователя {member.name}")
+
+            return True
+        return False
+    except Exception as e:
+        print(f"Ошибка при снятии ролей: {e}")
+        return False
+
+
+async def add_staff_roles(user_id):
+    try:
+        guild = bot.get_guild(1315002924048318506)
+        member = guild.get_member(int(user_id))
+
+        if member:
+            staff_roles = [1398628811586801754, 1315002924048318511]
+
+            for role_id in staff_roles:
+                role = guild.get_role(role_id)
+                if role and role not in member.roles:
+                    await member.add_roles(role)
+                    print(f"Выдана роль {role.name} пользователю {member.name}")
+
+            return True
+        return False
+    except Exception:
+        print("Ошибка при выдаче ролей")
+        return False
 
 
 def run_bot():

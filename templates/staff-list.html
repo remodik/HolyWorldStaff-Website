@@ -26,6 +26,7 @@
             </thead>
             <tbody>
                 {% for member in staff_members %}
+                {% if member.access_level > 0 and member.dismissal_date is none %}
                 <tr data-member-id="{{ member.id }}">
                     <td>
                         <div class="d-flex align-items-center">
@@ -48,7 +49,9 @@
                         {{ member.nickname|default('Не указан', true) }}
                     </td>
                     <td>
-                        {% if member.access_level == 6 %}
+                        {% if member.access_level == 7 %}
+                        <span class="badge bg-danger">Администратор</span>
+                        {% elif member.access_level == 6 %}
                         <span class="badge" style="background-color: #9e6bff; color: white">Куратор дискорда</span>
                         {% elif member.access_level == 5 %}
                         <span class="badge" style="background-color: #965f7f; color: white">Зам.Куратора дискорда</span>
@@ -106,13 +109,18 @@
                     </td>
                     {% if current_user.access_level >= 4 %}
                     <td>
-                        <button class="btn btn-sm btn-outline-primary"
-                                onclick="loadMemberData('{{ member.id }}')">
-                            <i class="bi bi-pencil"></i>
-                        </button>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="loadMemberData('{{ member.id }}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="quickDismiss('{{ member.id }}')">
+                                <i class="bi bi-person-x"></i>
+                            </button>
+                        </div>
                     </td>
                     {% endif %}
                 </tr>
+                {% endif %}
                 {% endfor %}
             </tbody>
         </table>
@@ -161,7 +169,39 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                        <button type="button" class="btn btn-danger" onclick="showDismissModal()">Снять с должности</button>
                         <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="dismissModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header">
+                    <h5 class="modal-title">Снять с должности</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="dismissForm">
+                    <input type="hidden" name="member_id" id="dismissMemberId">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Причина снятия (необязательно)</label>
+                            <label for="dismissalReason"></label><textarea class="form-control" name="dismissal_reason" id="dismissalReason"
+                                                                           rows="3" placeholder="Укажите причину снятия, если необходимо"></textarea>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="remove_roles" id="removeRoles" checked>
+                            <label class="form-check-label" for="removeRoles">
+                                Снять роли Discord через бота
+                            </label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-danger">Снять с должности</button>
                     </div>
                 </form>
             </div>
@@ -190,6 +230,12 @@
             })
             .then(data => {
                 if (data.success) {
+                    if (data.dismissed) {
+                        alert(data.message);
+                    }
+                    if (data.message) {
+                        alert(data.message);
+                    }
                     location.reload();
                 } else {
                     alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
@@ -226,6 +272,82 @@
                 });
         }
 
+        function showDismissModal() {
+            document.getElementById('dismissMemberId').value = document.getElementById('memberId').value;
+
+            const modal = new bootstrap.Modal(document.getElementById('dismissModal'));
+            modal.show();
+        }
+
+        function dismissMember() {
+            const form = document.getElementById('dismissForm');
+            const formData = new FormData(form);
+            const memberId = formData.get('member_id');
+            const reason = formData.get('dismissal_reason');
+            const removeRoles = formData.get('remove_roles') === 'on';
+
+            fetch('/dismiss-staff-member', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-KEY': '123'
+                },
+                body: JSON.stringify({
+                    id: memberId,
+                    reason: reason || 'Снятие через интерфейс',
+                    remove_roles: removeRoles
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Сотрудник снят с должности');
+                    const editModal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
+                    const dismissModal = bootstrap.Modal.getInstance(document.getElementById('dismissModal'));
+                    if (editModal) editModal.hide();
+                    if (dismissModal) dismissModal.hide();
+                    location.reload();
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                alert('Ошибка при снятии: ' + error.message);
+            });
+        }
+
+        function quickDismiss(memberId) {
+            if (confirm('Снять этого сотрудника с должности без указания причины?')) {
+                fetch('/dismiss-staff-member', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-KEY': '123'
+                    },
+                    body: JSON.stringify({
+                        id: memberId,
+                        reason: 'Быстрое снятие',
+                        remove_roles: true
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Сотрудник снят с должности');
+                        // Удаляем строку из таблицы вместо перезагрузки
+                        document.querySelector(`tr[data-member-id="${memberId}"]`).remove();
+                    } else {
+                        alert('Ошибка: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Ошибка при снятии: ' + error.message);
+                });
+            }
+        }
+
         function loadRoleData(level) {
             fetch(`/get-role-data?level=${level}`)
                 .then(response => response.json())
@@ -244,6 +366,11 @@
                     console.error('Ошибка загрузки данных роли:', error);
                 });
         }
+
+        document.getElementById('dismissForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            dismissMember();
+        });
 
         document.addEventListener('DOMContentLoaded', function() {
             if (CURRENT_ACCESS >= 6) {

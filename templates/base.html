@@ -122,6 +122,7 @@
                             {% endif %}
 
                             {% if current_user.access_level >= 4 %}
+                                <li><a class="dropdown-item" href="{{ url_for('dismissed_staff') }}"><i class="bi bi-people me-1"></i>Снятые сотрудники</a></li>
                                 <li><a class="dropdown-item" href="{{ url_for('create_guide') }}"><i class="bi bi-plus-circle me-1"></i> Создать</a></li>
                             {% endif %}
 

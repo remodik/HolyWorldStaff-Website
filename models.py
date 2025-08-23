@@ -103,6 +103,10 @@ class User(db.Model, UserMixin):
     vacation_date = db.Column(db.Date)
     join_date = db.Column(db.Date)
     vk_link = db.Column(db.String(100))
+    dismissal_date = db.Column(db.Date, nullable=True)
+    dismissal_reason = db.Column(db.String(255), nullable=True)
+    previous_access_level = db.Column(db.Integer, default=1)
+    additional_data = db.Column(db.Text, nullable=True)
 
     @property
     def has_access(self):

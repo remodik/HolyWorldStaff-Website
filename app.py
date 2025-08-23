@@ -1,17 +1,22 @@
-import threading
-import requests
-from datetime import datetime
-from sqlalchemy import select
-from flask import Flask, render_template, redirect, url_for, request, flash, abort, jsonify, make_response
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user
-from config import Config
-from models import db, User, Guide, ResponseTemplate, StaffRole, SalaryHistory, ModeratorStats, PurchaseRequest, VacationRequest
-from discord_bot import get_user_access_level, run_bot
-from functools import wraps
-from flask_jwt_extended import JWTManager, create_access_token
+import asyncio
 import json
+import re
+import threading
+from datetime import datetime
+from functools import wraps
 
-app = Flask(__name__)
+import requests
+from flask import Flask, render_template, redirect, url_for, request, flash, abort, jsonify, make_response
+from flask_jwt_extended import JWTManager, create_access_token
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from sqlalchemy import select
+
+from config import Config
+from discord_bot import get_user_access_level, run_bot, remove_staff_roles, add_staff_roles
+from models import db, User, Guide, ResponseTemplate, StaffRole, SalaryHistory, ModeratorStats, PurchaseRequest, \
+    VacationRequest
+
+app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config.from_object(Config)
 app.config['SQLALCHEMY_FUTURE'] = True
 app.config['JWT_SECRET_KEY'] = 'your-secret-key'
@@ -187,7 +192,7 @@ def auth_callback():
 @app.route('/staff-list')
 @staff_required()
 def staff_list():
-    staff_members = User.query.order_by(User.access_level.desc()).all()
+    staff_members = User.query.filter(User.access_level > 0, User.dismissal_date.is_(None)).order_by(User.access_level.desc()).all()
     staff_roles = StaffRole.query.order_by(StaffRole.access_level.desc()).all()
     return render_template('staff-list.html',
                          staff_members=staff_members,
@@ -300,7 +305,6 @@ def staff_rules():
 @app.route('/get-staff-member')
 @staff_required(access_level=4)
 def get_staff_member():
-
     member_id = request.args.get('id')
     if not member_id:
         return jsonify({'error': 'ID сотрудника не указан'}), 400
@@ -318,10 +322,14 @@ def get_staff_member():
         'id': str(member.id),
         'full_name': member.full_name or '',
         'nickname': member.nickname or '',
+        'username': member.username or '',
         'salary': member.salary or '',
         'warnings': member.warnings or '0/0',
         'vacation_date': member.vacation_date.strftime('%d.%m.%Y') if member.vacation_date else '',
         'join_date': member.join_date.strftime('%d.%m.%Y') if member.join_date else '',
+        'dismissal_date': member.dismissal_date.strftime('%d.%m.%Y') if member.dismissal_date else '',
+        'dismissal_reason': member.dismissal_reason or '',
+        'previous_access_level': getattr(member, 'previous_access_level', 0),
         'vk_link': member.vk_link or ''
     })
 
@@ -339,17 +347,27 @@ def update_staff_member():
         if not member:
             return jsonify({'error': 'Сотрудник не найден'}), 404
 
+        salary_input = request.form.get('salary', '').strip()
+
+        try:
+            if re.fullmatch(r"[0-9+\-*/(). ]+", salary_input):
+                result = eval(salary_input, {"__builtins__": {}})
+                member.salary = str(int(result))
+            else:
+                member.salary = member.salary or "0"
+        except Exception:
+            member.salary = member.salary or "0"
+
         member.full_name = request.form.get('full_name', '')
         member.nickname = request.form.get('nickname', '')
-        member.salary = request.form.get('salary', '')
         member.warnings = request.form.get('warnings', '0/0')
         member.vk_link = request.form.get('vk_link', '')
 
         vacation_date = request.form.get('vacation_date')
         join_date = request.form.get('join_date')
 
-        member.vacation_date = datetime.strptime(vacation_date, '%d.%m.%Y').date() if vacation_date else None
-        member.join_date = datetime.strptime(join_date, '%d.%m.%Y').date() if join_date else None
+        member.vacation_date = datetime.strptime(vacation_date, '%Y-%m-%d').date() if vacation_date else None
+        member.join_date = datetime.strptime(join_date, '%Y-%m-%d').date() if join_date else None
 
         db.session.commit()
 
@@ -528,7 +546,40 @@ def update_warnings():
         else:
             pred_count = max(0, pred_count + change)
 
+            if pred_count >= 3 and change > 0:
+                warn_count += 1
+                pred_count = 0
+
         member.warnings = f"{warn_count}/{pred_count}"
+
+        if warn_count >= 2:
+            member.previous_access_level = member.access_level
+            member.access_level = 0
+            member.dismissal_date = datetime.now().date()
+            member.dismissal_reason = "2/2 выговора"
+
+            warn_count -= 2
+
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'dismissed': True,
+                'message': 'Сотрудник снят с должности: 2/2 выговора'
+            })
+
+        additional_data = json.loads(member.additional_data) if member.additional_data else {}
+        if 'dismissal_history' not in additional_data:
+            additional_data['dismissal_history'] = []
+
+        additional_data['dismissal_history'].append({
+            'date': datetime.now().date().isoformat(),
+            'reason': member.dismissal_reason or "2/2 выговора",
+            'previous_access_level': member.previous_access_level or member.previous_access_level,
+            'dismissed_by': current_user.id if current_user.is_authenticated else None
+        })
+        member.additional_data = json.dumps(additional_data)
+
         db.session.commit()
 
         return jsonify({
@@ -1136,6 +1187,12 @@ def process_vacation_request(request_id):
 
         if action == 'approve':
             vacation_request.status = 'approved'
+
+            user = User.query.get(vacation_request.user_id)
+            if user:
+                user.vacation_date = vacation_request.end_date
+                db.session.add(user)
+
             flash('Заявка на отпуск одобрена', 'success')
 
         elif action == 'reject':
@@ -1186,6 +1243,256 @@ def get_vacation_requests():
         })
 
     return jsonify({'requests': requests_data})
+
+
+@app.route('/dismissed-staff')
+@staff_required(access_level=4)
+def dismissed_staff():
+    entries = []
+    users = User.query.all()
+    for user in users:
+        additional = json.loads(user.additional_data) if user.additional_data else {}
+        for hist in additional.get('dismissal_history', []):
+            try:
+                ddate = datetime.fromisoformat(hist.get('date')).date() if hist.get('date') else None
+            except Exception:
+                ddate = None
+            entries.append({
+                'id': str(user.id),
+                'avatar': user.avatar,
+                'full_name': user.full_name,
+                'nickname': user.nickname,
+                'previous_access_level': hist.get('previous_access_level', user.previous_access_level or 0),
+                'username': user.username,
+                'warnings': user.warnings or '0/0',
+                'dismissal_date': ddate,
+                'dismissal_reason': hist.get('reason') or user.dismissal_reason,
+                'vk_link': user.vk_link
+            })
+
+        if not additional.get('dismissal_history') and user.access_level == 0 and user.dismissal_date:
+            entries.append({
+                'id': str(user.id),
+                'avatar': user.avatar,
+                'full_name': user.full_name,
+                'nickname': user.nickname,
+                'previous_access_level': getattr(user, 'previous_access_level', 0),
+                'username': user.username,
+                'warnings': user.warnings or '0/0',
+                'dismissal_date': user.dismissal_date,
+                'dismissal_reason': user.dismissal_reason,
+                'vk_link': user.vk_link
+            })
+
+    # сортируем по дате снятия (последние сверху)
+    entries.sort(key=lambda x: x['dismissal_date'] or datetime.min.date(), reverse=True)
+
+    return render_template('dismissed-staff.html', dismissed_members=entries)
+
+
+@app.route('/dismiss-staff-member', methods=['POST'])
+@staff_required(access_level=4)
+def dismiss_staff_member():
+    try:
+        data = request.get_json() or {}
+        member_id = data.get('id')
+        reason = data.get('reason', 'Снятие без причины')
+        remove_roles = data.get('remove_roles', True)
+
+        member = User.query.get(member_id)
+        if not member:
+            return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+
+        # --- сохраняем в историю снятий в additional_data ---
+        additional_data = json.loads(member.additional_data) if member.additional_data else {}
+        if 'dismissal_history' not in additional_data:
+            additional_data['dismissal_history'] = []
+
+        additional_data['dismissal_history'].append({
+            'date': datetime.now().date().isoformat(),
+            'reason': reason,
+            'previous_access_level': member.access_level,
+            'dismissed_by': current_user.id
+        })
+        member.additional_data = json.dumps(additional_data)
+
+        member.previous_access_level = member.access_level
+        member.access_level = 0
+        member.dismissal_date = datetime.now().date()
+        member.dismissal_reason = reason
+
+        db.session.commit()
+
+        if remove_roles:
+            def _call_remove():
+                try:
+                    if asyncio.iscoroutinefunction(remove_staff_roles):
+                        asyncio.run(remove_staff_roles(member.id))
+                    else:
+                        remove_staff_roles(member.id)
+                except Exception:
+                    app.logger.exception("remove_staff_roles failed")
+
+            threading.Thread(target=_call_remove, daemon=True).start()
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/clear-dismissed-list', methods=['POST'])
+@staff_required(access_level=6)
+def clear_dismissed_list():
+    try:
+        dismissed_members = User.query.filter(
+            User.access_level == 0,
+            User.dismissal_date.isnot(None)
+        ).all()
+
+        for member in dismissed_members:
+            member.access_level = 1
+            member.dismissal_date = None
+            member.dismissal_reason = None
+
+        db.session.commit()
+
+        return jsonify({'success': True, 'cleared_count': len(dismissed_members)})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/rehire-staff-member', methods=['POST'])
+@staff_required(access_level=4)
+def rehire_staff_member():
+    try:
+        data = request.get_json() or {}
+        member_id = data.get('member_id')
+        access_level = int(data.get('access_level', 1))
+        join_date = data.get('join_date')
+        notes = data.get('notes', '')
+
+        member = User.query.get(member_id)
+        if not member:
+            return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+
+        additional_data = json.loads(member.additional_data) if member.additional_data else {}
+        if 'rehire_history' not in additional_data:
+            additional_data['rehire_history'] = []
+
+        rehire_info = {
+            'rehire_date': datetime.now().date().isoformat(),
+            'rehire_notes': notes,
+            'rehired_by': current_user.id,
+            'new_access_level': access_level,
+            'new_join_date': join_date
+        }
+        additional_data['rehire_history'].append(rehire_info)
+        member.additional_data = json.dumps(additional_data)
+
+        member.previous_access_level = member.previous_access_level or 0
+        member.access_level = access_level
+        if join_date:
+            try:
+                member.join_date = datetime.strptime(join_date, '%Y-%m-%d').date()
+            except Exception:
+                pass
+
+        member.dismissal_date = None
+        member.dismissal_reason = None
+
+        db.session.commit()
+
+        def _assign_roles():
+            try:
+                if asyncio.iscoroutinefunction(add_staff_roles):
+                    asyncio.run(add_staff_roles(member.id))
+                else:
+                    add_staff_roles(member.id)
+            except Exception:
+                app.logger.exception("assign roles failed")
+
+        threading.Thread(target=_assign_roles, daemon=True).start()
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/get-dismissed-member-details')
+@staff_required(access_level=4)
+def get_dismissed_member_details():
+    member_id = request.args.get('id')
+    if not member_id:
+        return jsonify({'error': 'ID сотрудника не указан'}), 400
+
+    member = User.query.get(member_id)
+    if not member:
+        return jsonify({'error': 'Сотрудник не найден'}), 404
+
+    additional_data = json.loads(member.additional_data) if member.additional_data else {}
+
+    return jsonify({
+        'id': str(member.id),
+        'full_name': member.full_name or '',
+        'nickname': member.nickname or '',
+        'username': member.username or '',
+        'previous_access_level': member.previous_access_level or 0,
+        'dismissal_reason': member.dismissal_reason or '',
+        'join_date': member.join_date.strftime('%Y-%m-%d') if member.join_date else '',
+        'dismissal_date': member.dismissal_date.strftime('%Y-%m-%d') if member.dismissal_date else '',
+        'vk_link': member.vk_link or '',
+        'additional_data': additional_data
+    })
+
+
+@app.route('/update-dismissed-member', methods=['POST'])
+@staff_required(access_level=4)
+def update_dismissed_member():
+    try:
+        data = request.get_json()
+        member_id = data.get('member_id')
+
+        member = User.query.get(member_id)
+        if not member:
+            return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+
+        member.vk_link = data.get('vk_link', member.vk_link)
+        member.join_date = datetime.strptime(data.get('join_date'), '%Y-%m-%d').date() if data.get(
+            'join_date') else member.join_date
+        member.dismissal_date = datetime.strptime(data.get('dismissal_date'), '%Y-%m-%d').date() if data.get(
+            'dismissal_date') else member.dismissal_date
+        member.dismissal_reason = data.get('dismissal_reason', member.dismissal_reason)
+
+        additional_data = {
+            'dismissal_notes': data.get('dismissal_notes', ''),
+            'email': data.get('email', ''),
+            'warnings_history': []
+        }
+
+        warning_dates = data.get('warning_dates', [])
+        warning_reasons = data.get('warning_reasons', [])
+
+        for i in range(len(warning_dates)):
+            if warning_dates[i] and warning_reasons[i]:
+                additional_data['warnings_history'].append({
+                    'date': warning_dates[i],
+                    'reason': warning_reasons[i]
+                })
+
+        member.additional_data = json.dumps(additional_data)
+
+        db.session.commit()
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/staff/<string:member_id>', methods=['GET'])
