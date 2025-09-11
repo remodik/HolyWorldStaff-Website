@@ -139,7 +139,7 @@ def staff_required(access_level=1):
                 if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json:
                     return jsonify({"success": False, "error": "Недостаточно прав"}), 403
                 flash('Недостаточно прав для доступа!', 'danger')
-                return redirect(url_for('dashboard'))
+                return redirect(url_for('index'))
             return f(*args, **kwargs)
         return decorated_function
     return decorator
