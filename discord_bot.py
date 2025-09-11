@@ -2,13 +2,33 @@ import discord
 from discord.ext import commands
 from config import Config
 import aiohttp
+import os
 
+BOT_API_SECRET = os.getenv("BOT_API_SECRET")
+API_URL = "http://127.0.0.1:5000"
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+
+bot_jwt = None
+
+async def get_bot_token():
+    global bot_jwt
+    async with aiohttp.ClientSession() as session:
+        url = f"{API_URL}/api/auth/bot"
+        async with session.post(url, json={"secret": BOT_API_SECRET}) as resp:
+            data = await resp.json()
+            if data.get("success"):
+                bot_jwt = data["token"]
+            else:
+                print("Не удалось получить токен для бота:", data)
+
+
 @bot.event
 async def on_ready():
+    await get_bot_token()
     print(f'Бот {bot.user} запущен!')
+    print(f'JWT: {bot_jwt}')
 
 
 @bot.command(name="info")
@@ -18,11 +38,11 @@ async def staff_info(ctx, member: discord.User = None):
 
     try:
         async with aiohttp.ClientSession() as session:
-
-            url = f"http://127.0.0.1:5000/api/staff/{member.id}"
+            url = f"{API_URL}/api/staff/{member.id}"
             async with session.get(url, headers={
-                'X-API-KEY': '123',
-                'User-Agent': 'HolyWorld-Discord-Bot'
+                'Authorization': f'Bearer {bot_jwt}',
+                'User-Agent': 'HolyWorld-Discord-Bot',
+                'Content-Type': 'application/json'
             }) as response:
                 if response.content_type == 'application/json':
                     data = await response.json()
@@ -34,7 +54,13 @@ async def staff_info(ctx, member: discord.User = None):
                     else:
                         await ctx.send(f"❌ {member.display_name} не найден в базе стаффа")
                 else:
-                    await ctx.send("⚠️ Ошибка доступа к API. Нужно обновить настройки сервера.")
+                    await ctx.send(
+                        embed=discord.Embed(
+                            title="",
+                            description="⚠️ Ошибка доступа к API.",
+                            color=discord.Color.red()
+                        )
+                    )
                     print(f"Получен редирект на: {response.url}")
 
     except aiohttp.ClientError:
@@ -45,8 +71,9 @@ async def staff_info(ctx, member: discord.User = None):
 
 async def send_staff_embed(ctx, member, staff_data):
     role_colors = {
-        6: 0x9e6bff, 5: 0x965f7f, 4: 0x00ff22,
-        3: 0xff0000, 2: 0x78f4db, 1: 0x40e0d0
+        9: 0x4cadd0,
+        8: 0x9e6bff, 7: 0x965f7f, 6: 0x00ff22, 5: 0xff0000,
+        4: discord.Color.orange(), 3: 0x40e0d0, 2: 0x54b3ca, 1: discord.Color.orange(),
     }
 
     embed_color = role_colors.get(staff_data['access_level'], 0x000000)
@@ -61,6 +88,19 @@ async def send_staff_embed(ctx, member, staff_data):
         basic_info += f"\n**ВК:** `{staff_data['vk_link']}`"
     if staff_data.get('salary'):
         basic_info += f"\n**Зарплата:** `{staff_data['salary']}`"
+
+    async with aiohttp.ClientSession() as session:
+        tasks_url = f"http://127.0.0.1:5000/api/staff/{member.id}/tasks"
+        async with session.get(tasks_url, headers={
+            'Authorization': f'Bearer {bot_jwt}',
+            'User-Agent': 'HolyWorld-Discord-Bot',
+            'Content-Type': 'application/json'
+        }) as response:
+            if response.status == 200:
+                tasks_data = await response.json()
+                if tasks_data.get('success'):
+                    tasks_info = f"**Выполнено заданий:** `{tasks_data['tasks_completed']}`"
+                    basic_info += f"\n{tasks_info}"
 
     embed.add_field(
         name="**Основная информация**",
@@ -98,12 +138,15 @@ async def send_staff_embed(ctx, member, staff_data):
 
 def get_role_name(access_level):
     roles = {
-        6: "Куратор дискорда",
-        5: "Зам.Куратора дискорда",
-        4: "Гл.Модератор дискорда",
-        3: "Ст.Модератор дискорда",
-        2: "Модератор дискорда",
-        1: "Мл.Модератор дискорда"
+        9: "Администратор",
+        8: "Куратор дискорда",
+        7: "Зам.Куратора дискорда",
+        6: "Гл.Модератор дискорда",
+        5: "Ст.Модератор дискорда",
+        4: "Следящий за хелперами",
+        3: "Модератор дискорда",
+        2: "Мл.Модератор дискорда",
+        1: "Хелпер дискорда"
     }
     return roles.get(access_level, "Неизвестная роль")
 
@@ -118,41 +161,24 @@ def get_user_access_level(user_id: int) -> int:
         return 0
 
     if any(role.id == Config.DISCORD_ADMIN_ROLE_ID for role in member.roles):
-        return 7
+        return 9
     elif any(role.id == Config.DISCORD_CUR_ROLE_ID for role in member.roles):
-        return 6
+        return 8
     elif any(role.id == Config.DISCORD_ZAMCUR_ROLE_ID for role in member.roles):
-        return 5
+        return 7
     elif any(role.id == Config.DISCORD_GLMOD_ROLE_ID for role in member.roles):
-        return 4
+        return 6
     elif any(role.id == Config.DISCORD_STMOD_ROLE_ID for role in member.roles):
-        return 3
+        return 5
+    elif any(role.id == Config.DISCORD_CHECKHELPERS_ROLE_ID for role in member.roles):
+        return 4
     elif any(role.id == Config.DISCORD_MOD_ROLE_ID for role in member.roles):
-        return 2
+        return 3
     elif any(role.id == Config.DISCORD_MLMOD_ROLE_ID for role in member.roles):
+        return 2
+    elif any(role.id == Config.DISCORD_HELPER_ROLE_ID for role in member.roles):
         return 1
     return 0
-
-
-async def remove_staff_roles(user_id):
-    try:
-        guild = bot.get_guild(1315002924048318506)
-        member = guild.get_member(int(user_id))
-
-        if member:
-            staff_roles = [1398628811586801754, 1315002924048318511]
-
-            for role_id in staff_roles:
-                role = guild.get_role(role_id)
-                if role and role in member.roles:
-                    await member.remove_roles(role)
-                    print(f"Снята роль {role.name} с пользователя {member.name}")
-
-            return True
-        return False
-    except Exception as e:
-        print(f"Ошибка при снятии ролей: {e}")
-        return False
 
 
 async def add_staff_roles(user_id):

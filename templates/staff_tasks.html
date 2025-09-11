@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="bi bi-list-task me-2"></i>
+            Задания для персонала
+        </h2>
+
+        {% if current_user.access_level >= 7 %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTaskModal">
+            <i class="bi bi-plus-circle me-1"></i> Создать задание
+        </button>
+        {% endif %}
+    </div>
+
+    <div class="row">
+        <div class="col-md-8">
+            {% if tasks %}
+            {% for task in tasks %}
+            <div class="card mb-4 {% if not task.is_active2 %}bg-light{% endif %}">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ task.title }}</h5>
+                    <div>
+                        {% if task.deadline %}
+                        <span class="badge bg-{% if task.deadline > now %}warning{% else %}danger{% endif %}">
+                            До: {{ task.deadline.strftime('%d.%m.%Y %H:%M') }}
+                        </span>
+                        {% endif %}
+                        <span class="badge bg-{% if task.is_active2 %}success{% else %}secondary{% endif %}">
+                            {{ 'Активно' if task.is_active2 else 'Неактивно' }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card-body">
+                    <p class="card-text">{{ task.description }}</p>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <strong>Награда:</strong>
+                            {% if task.reward_type == 'per_completion' %}
+                                {{ task.reward_amount }} за каждое выполнение
+                            {% else %}
+                                {{ task.reward_amount }} за первое выполнение
+                            {% endif %}
+
+                            {% if task.bonus_percentage > 0 %}
+                                + {{ task.bonus_percentage }}% бонус
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Лимит выполнений:</strong>
+                            {% if task.max_completions == 0 %}
+                                Без ограничений
+                            {% else %}
+                                Макс. {{ task.max_completions }}
+                                {% set approved_count = task.completions|selectattr('status', 'equalto', 'approved')|list|length %}
+                                (Выполнено: {{ approved_count }})
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            Создал: {{ task.creator.username }} |
+                            {{ task.created_at.strftime('%d.%m.%Y %H:%M') }}
+                        </small>
+
+                        {% if current_user.access_level >= 1 and task.is_active2 %}
+                            {% set approved_count = task.completions|selectattr('status', 'equalto', 'approved')|list|length %}
+                            {% set my_approved = task.completions|selectattr('user_id', 'equalto', current_user.id)|selectattr('status', 'equalto', 'approved')|list|length %}
+                            {% set my_pending = task.completions|selectattr('user_id', 'equalto', current_user.id)|selectattr('status', 'equalto', 'pending')|list|length %}
+
+                            {% if task.reward_type == 'per_completion' %}
+                                {% if task.max_completions == 0 or approved_count < task.max_completions %}
+                                    {% if my_pending == 0 %}
+                                        <button class="btn btn-sm btn-success" data-bs-toggle="modal"
+                                                data-bs-target="#completeTaskModal" data-task-id="{{ task.id }}">
+                                            <i class="bi bi-check-circle me-1"></i> Выполнить
+                                        </button>
+                                    {% else %}
+                                        <span class="badge bg-warning">На проверке</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-secondary">Лимит исчерпан</span>
+                                {% endif %}
+                            {% elif task.reward_type == 'one_time' %}
+                                {% if my_pending > 0 %}
+                                    <span class="badge bg-warning">На проверке</span>
+                                {% elif my_approved == 0 %}
+                                    <button class="btn btn-sm btn-success" data-bs-toggle="modal"
+                                            data-bs-target="#completeTaskModal" data-task-id="{{ task.id }}">
+                                        <i class="bi bi-check-circle me-1"></i> Выполнить
+                                    </button>
+                                {% else %}
+                                    {% if task.max_completions == 0 or approved_count < task.max_completions %}
+                                        {% if my_pending == 0 %}
+                                            <button class="btn btn-sm btn-info" data-bs-toggle="modal"
+                                                    data-bs-target="#completeTaskModal" data-task-id="{{ task.id }}">
+                                                <i class="bi bi-arrow-repeat me-1"></i> Выполнить снова
+                                            </button>
+                                        {% else %}
+                                            <span class="badge bg-warning">На проверке</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-success">Уже выполнено</span>
+                                    {% endif %}
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if current_user.access_level >= 7 %}
+                <div class="card-footer">
+                    <h6>Заявки на выполнение:</h6>
+                    {% for completion in task.completions if completion.status == 'pending' %}
+                    <div class="d-flex justify-content-between align-items-center p-2 border rounded mb-2">
+                        <div>
+                            <strong>{{ completion.user.username }}</strong>
+                            {% if completion.proof %}
+                            <br><small>Доказательство: {{ completion.proof }}</small>
+                            {% endif %}
+                        </div>
+                        <div class="btn-group">
+                            <form method="POST" action="{{ url_for('review_completion', completion_id=completion.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="action" value="approve">
+                                <button type="submit" class="btn btn-sm btn-success">✓ Одобрить</button>
+                            </form>
+                            <button class="btn btn-sm btn-danger" data-bs-toggle="modal"
+                                    data-bs-target="#rejectModal" data-completion-id="{{ completion.id }}">
+                                ✗ Отклонить
+                            </button>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">Нет заявок на рассмотрении</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-inbox display-1 text-muted"></i>
+                <h4 class="mt-3">Заданий пока нет</h4>
+                <p class="text-muted">Создайте первое задание для персонала</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Моя статистика</h5>
+                </div>
+                <div class="card-body">
+                    {% set my_completions = user_completions.values()|selectattr('status', 'equalto', 'approved')|list %}
+                    <div class="text-center">
+                        <h2 class="text-primary">{{ my_completions|length }}</h2>
+                        <p class="text-muted">Выполненных заданий</p>
+                    </div>
+
+                    {% if my_completions %}
+                    <h6>Последние выполнения:</h6>
+                    {% for completion in my_completions[-5:]|reverse %}
+                    <div class="border-start border-primary ps-2 mb-2">
+                        <strong>{{ completion.task.title }}</strong>
+                        <br>
+                        <small class="text-muted">
+                            {{ completion.completed_at.strftime('%d.%m.%Y') }} |
+                            +{{ completion.task.reward_amount }}
+                        </small>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="createTaskModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Создание задания</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('create_task') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Название задания</label>
+                        <label>
+                            <input type="text" class="form-control" name="title" required>
+                        </label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Описание</label>
+                        <label>
+                            <textarea class="form-control" name="description" rows="4" required></textarea>
+                        </label>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Тип награды</label>
+                            <label>
+                                <select class="form-select" name="reward_type">
+                                    <option value="per_completion">За каждое выполнение</option>
+                                    <option value="one_time">Однократно</option>
+                                </select>
+                            </label>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Размер награды</label>
+                            <label>
+                                <input type="number" class="form-control" name="reward_amount" value="0" min="0">
+                            </label>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Бонусный процент</label>
+                            <label>
+                                <input type="number" class="form-control" name="bonus_percentage" value="0" min="0" step="0.1">
+                            </label>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Лимит выполнений (0 = без ограничений)</label>
+                            <label>
+                                <input type="number" class="form-control" name="max_completions" value="1" min="0">
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Дедлайн (необязательно)</label>
+                        <label>
+                            <input type="datetime-local" class="form-control" name="deadline">
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Создать задание</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="completeTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Выполнение задания</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="" id="completeTaskForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Доказательство выполнения (необязательно)</label>
+                        <label><textarea class="form-control" name="proof" rows="3"
+                                         placeholder="Опишите как выполнили задание или приложите ссылки"></textarea>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-success">Отправить на проверку</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Отклонение заявки</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="" id="rejectForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="reject">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Причина отклонения</label>
+                        <label>
+                            <textarea class="form-control" name="review_notes" rows="3" required></textarea>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-danger">Отклонить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const completeTaskModal = document.getElementById('completeTaskModal');
+        completeTaskModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const taskId = button.getAttribute('data-task-id');
+            const form = document.getElementById('completeTaskForm');
+            form.action = `/complete-task/${taskId}`;
+        });
+
+        const rejectModal = document.getElementById('rejectModal');
+        rejectModal.addEventListener('show.bs.modal', function(event) {
+            const button = event.relatedTarget;
+            const completionId = button.getAttribute('data-completion-id');
+            const form = document.getElementById('rejectForm');
+            form.action = `/review-completion/${completionId}`;
+        });
+    });
+</script>
+
+<style>
+    .card {
+        transition: transform 0.2s;
+    }
+    .card:hover {
+        transform: translateY(-2px);
+    }
+    .border-primary {
+        border-left-width: 3px !important;
+    }
+</style>
+{% endblock %}

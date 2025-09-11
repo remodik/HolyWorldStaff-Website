@@ -1,52 +1,62 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
+<div class="container mt-4">
     <div id="userAuthData"
          data-access-level="{{ current_user.access_level if current_user.is_authenticated else 0 }}"
          style="display: none;"></div>
 
-    <h2 class="my-4">Расчёт ЗП</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h3 fw-bold text-gradient-primary">💰 Расчёт зарплаты</h2>
+        <div class="text-muted">
+            <i class="bi bi-calendar-month me-1"></i>{{ current_month }}/{{ current_year }}
+        </div>
+    </div>
 
-    {% if current_user.access_level >= 5 %}
-    <div class="card mb-4">
-        <div class="card-header bg-success text-white">
-            <h4><i class="bi bi-clipboard-data me-2"></i>Ввод статистики</h4>
+    {% if current_user.access_level >= 7 %}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-transparent border-0 py-3">
+            <h5 class="mb-0 fw-semibold text-primary">
+                <i class="bi bi-clipboard-data me-2"></i>Ввод статистики
+            </h5>
         </div>
         <div class="card-body">
             <form id="statsForm" method="POST" action="{{ url_for('update_moderator_stats') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="row g-3">
                     <div class="col-md-3">
-                        <label class="form-label">Модератор</label>
-                        <label for="userSelect"></label><select class="form-select" name="user_id" id="userSelect" required>
+                        <label class="form-label fw-semibold">Модератор</label>
+                        <label for="userSelect"></label><select class="form-select form-select-lg" name="user_id" id="userSelect" required>
                             <option value="">Выберите модератора</option>
                             {% for member in staff_members %}
-                            {% if member.access_level >= 1%}
-                            <option value="{{ member.id }}">{{ member.username }}</option>
-                            {% endif %}
+                                {% if member.access_level >= 1 %}
+                                    <option value="{{ member.id }}">{{ member.username }}</option>
+                                {% endif %}
                             {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Общее НК</label>
+                        <label class="form-label fw-semibold">Общее НК</label>
                         <label>
-                            <input type="number" class="form-control" name="punishments" min="0" required>
+                            <input type="number" class="form-control form-control-lg" value="0" name="punishments" min="0" required>
                         </label>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Тикетов</label>
+                        <label class="form-label fw-semibold">Тикетов</label>
                         <label>
-                            <input type="number" class="form-control" name="tickets_closed" min="0" required>
+                            <input type="number" class="form-control form-control-lg" value="0" name="tickets_closed" min="0" required>
                         </label>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Пропущено недель</label>
+                        <label class="form-label fw-semibold">Пропущено недель</label>
                         <label>
-                            <input type="number" class="form-control" name="weeks_missed" min="0" required>
+                            <input type="number" class="form-control form-control-lg" value="0" name="weeks_missed" min="0" required>
                         </label>
                     </div>
                     <div class="col-md-1 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100">💾</button>
+                        <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill">
+                            <i class="bi bi-save"></i>
+                        </button>
                     </div>
                 </div>
             </form>
@@ -54,113 +64,145 @@
     </div>
     {% endif %}
 
-    <div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h4 class="mb-0">Расчет зарплаты за {{ current_month }}/{{ current_year }}</h4>
-        <div>
-            {% if current_user.access_level >= 5 %}
-            <button class="btn btn-success me-2" onclick="calculateSalaries()">
-                <i class="bi bi-calculator me-1"></i>Рассчитать
-            </button>
-            <button class="btn btn-warning" onclick="payoutSalaries()">
-                <i class="bi bi-cash-coin me-1"></i>Выдать
-            </button>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-transparent border-0 py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-semibold text-primary">Зарплатная ведомость</h5>
+            {% if current_user.access_level >= 7 %}
+            <div class="d-flex gap-2">
+                <button class="btn btn-success rounded-pill px-4" onclick="calculateSalaries()">
+                    <i class="bi bi-calculator me-2"></i>Рассчитать
+                </button>
+                <button class="btn btn-warning rounded-pill px-4" onclick="payoutSalaries()">
+                    <i class="bi bi-cash-coin me-2"></i>Выдать
+                </button>
+            </div>
             {% endif %}
         </div>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-bordered table-hover mb-0">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Модератор</th>
-                        <th>Должность</th>
-                        <th>Общее НК</th>
-                        <th>Тикеты</th>
-                        <th>Топ по НК</th>
-                        <th>Пропущено недель</th>
-                        <th>% За тикеты</th>
-                        <th>% За должность</th>
-                        <th>% За Топ модера</th>
-                        <th>% За топ</th>
-                        <th>ЗП за НК</th>
-                        <th>Общий %</th>
-                        <th>Итоговая ЗП</th>
-                        {% if current_user.access_level >= 5 %}
-                        <th></th>
-                        {% endif %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for stat in current_stats %}
-                    {% set calc = calculated_data[stat.user_id] %}
-                    <tr>
-                        <td class="text-center">
-                            {{ stat.user.nickname }}
-                        </td>
-                        <td>
-                            {% if stat.user.access_level == 7 %}
-                                <span class="badge bg-danger">Администратор</span>
-                            {% elif stat.user.access_level == 6 %}
-                                <span class="badge" style="background-color: #9e6bff; color: white">Куратор</span>
-                            {% elif stat.user.access_level == 5 %}
-                                <span class="badge" style="background-color: #965f7f; color: white">Зам.Куратора</span>
-                            {% elif stat.user.access_level == 4 %}
-                                <span class="badge" style="background-color: #00ff22; color: darkblue">Гл.Модератор</span>
-                            {% elif stat.user.access_level == 3 %}
-                                <span class="badge" style="background-color: #ff0000; color: white">Ст.Модератор</span>
-                            {% elif stat.user.access_level == 2 %}
-                                <span class="badge" style="background-color: #78f4db; color: black">Модератор</span>
-                            {% elif stat.user.access_level == 1 %}
-                                <span class="badge" style="background-color: #40e0d0; color: white">Мл.Модератор</span>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Модератор</th>
+                            <th>Должность</th>
+                            <th class="text-center">НК</th>
+                            <th class="text-center">Тикеты</th>
+                            <th class="text-center">Топ</th>
+                            <th class="text-center">Пропуски</th>
+                            <th class="text-center">% Тикеты</th>
+                            <th class="text-center">% Должность</th>
+                            <th class="text-center">% Топ модер</th>
+                            <th class="text-center">% Топ</th>
+                            <th class="text-center">ЗП за НК</th>
+                            <th class="text-center">Общий %</th>
+                            <th class="text-center fw-bold pe-4">Итог</th>
+                            {% if current_user.access_level >= 7 %}
+                            <th class="text-center">Действия</th>
                             {% endif %}
-                        </td>
-                        <td class="text-center">{{ stat.punishments }}</td>
-                        <td class="text-center">{{ stat.tickets_closed }}</td>
-                        <td class="text-center">{{ calc.rank if calc.rank > 0 else '-' }}</td>
-                        <td class="text-center">{{ stat.weeks_missed if stat.weeks_missed > 0 else '-' }}</td>
-                        <td class="text-center">{{ calc.ticket_display }}</td>
-                        <td class="text-center">{{ calc.position_display }}</td>
-                        <td class="text-center">{{ calc.top_mod_display }}</td>
-                        <td class="text-center">{{ calc.rank_display }}</td>
-                        <td class="text-center">{{ calc.base_salary }}</td>
-                        <td class="text-center">{{ calc.total_display }}</td>
-                        <td class="text-center fw-bold">{{ calc.final_salary }}</td>
-                        {% if current_user.access_level >= 5 %}
-                        <td class="text-center">
-                            <button class="btn btn-sm btn-outline-warning"
-                                    onclick="editStats({{ stat.user_id }})"
-                                    title="Редактировать">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                        </td>
-                        {% endif %}
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stat in current_stats %}
+                        {% set calc = calculated_data[stat.user_id] %}
+                        <tr class="align-middle">
+                            <td class="ps-4 fw-semibold">
+                                {{ stat.user.nickname or stat.user.username or 'Неизвестный' }}
+                            </td>
+                            <td>
+                                {% if stat.user.access_level == 9 %}
+                                    <span class="badge bg-danger rounded-pill">Администратор</span>
+                                {% elif stat.user.access_level == 8 %}
+                                    <span class="badge bg-purple rounded-pill">Куратор</span>
+                                {% elif stat.user.access_level == 7 %}
+                                    <span class="badge bg-pink rounded-pill">Зам.Куратора</span>
+                                {% elif stat.user.access_level == 6 %}
+                                    <span class="badge bg-success rounded-pill">Гл.Модератор</span>
+                                {% elif stat.user.access_level == 5 %}
+                                    <span class="badge bg-danger rounded-pill">Ст.Модератор</span>
+                                {% elif stat.user.access_level == 4 %}
+                                    <span class="badge bg-warning rounded-pill">Следящий за хелперами</span>
+                                {% elif stat.user.access_level == 3 %}
+                                    <span class="badge bg-info rounded-pill">Модератор</span>
+                                {% elif stat.user.access_level == 2 %}
+                                    <span class="badge bg-cyan rounded-pill">Мл.Модератор</span>
+                                {% elif stat.user.access_level == 1 %}
+                                    <span class="badge bg-primary rounded-pill">Хелпер</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">{{ stat.punishments }}</td>
+                            <td class="text-center">{{ stat.tickets_closed }}</td>
+                            <td class="text-center">{{ calc.rank if calc.rank > 0 else '-' }}</td>
+                            <td class="text-center">{{ stat.weeks_missed if stat.weeks_missed > 0 else '-' }}</td>
+                            <td class="text-center text-success">{{ calc.ticket_display }}</td>
+                            <td class="text-center text-primary">{{ calc.position_display }}</td>
+                            <td class="text-center top-moderator-cell" style="position: relative;">
+                                <div class="top-moderator-checkbox-container" style="display: none;">
+                                    <label>
+                                        <input type="checkbox" class="top-moderator-checkbox"
+                                               data-user-id="{{ stat.user_id }}"
+                                               {% if calc.top_moderator %}checked{% endif %}
+                                               onchange="toggleTopModerator(this)">
+                                    </label>
+                                </div>
+                                <span class="top-moderator-indicator {% if calc.top_moderator %}text-success{% else %}text-muted{% endif %}"
+                                      data-user-id="{{ stat.user_id }}">
+                                    <i class="bi bi-{% if calc.top_moderator %}check-circle-fill{% else %}circle{% endif %}"></i>
+                                </span>
+                            </td>
+                            <td class="text-center text-info">{{ calc.rank_display }}</td>
+                            <td class="text-center fw-semibold">{{ calc.base_salary }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-light text-dark rounded-pill">{{ calc.total_display }}</span>
+                            </td>
+                            <td class="text-center fw-bold text-success pe-4">
+                                {{ calc.final_salary }}
+                            </td>
+                            {% if current_user.access_level >= 7 %}
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-outline-primary rounded-pill"
+                                        onclick="editStats(stat.user_id)"
+                                        title="Редактировать">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-</div>
 
-    <ul class="nav nav-tabs mt-4" id="salaryTabs" role="tablist">
-        <li class="nav-item">
-            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#current">Текущий месяц</button>
-        </li>
-        <li class="nav-item">
-            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#history">История зарплат</button>
-        </li>
-    </ul>
-
-    <div class="tab-content mt-2">
-        <div class="tab-pane fade show active" id="current">
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-transparent border-0 py-3">
+            <ul class="nav nav-pills nav-fill" id="salaryTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active rounded-pill me-2" data-bs-toggle="tab" data-bs-target="#current">
+                        <i class="bi bi-calendar-month me-2"></i>Текущий месяц
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link rounded-pill" data-bs-toggle="tab" data-bs-target="#history">
+                        <i class="bi bi-clock-history me-2"></i>История зарплат
+                    </button>
+                </li>
+            </ul>
         </div>
 
-        <div class="tab-pane fade" id="history">
-            <div class="card">
-                <div class="card-body">
-                    <div class="row g-3 mb-3">
+        <div class="card-body">
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="current">
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-info-circle display-4"></i>
+                        <p class="mt-2">Текущие данные отображаются в таблице выше</p>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="history">
+                    <div class="row g-3 mb-4">
                         <div class="col-md-3">
+                            <label class="form-label fw-semibold">Месяц</label>
                             <label for="historyMonth"></label><select class="form-select" id="historyMonth">
                                 <option value="">Все месяцы</option>
                                 {% for i in range(1, 13) %}
@@ -169,6 +211,7 @@
                             </select>
                         </div>
                         <div class="col-md-3">
+                            <label class="form-label fw-semibold">Год</label>
                             <label for="historyYear"></label><select class="form-select" id="historyYear">
                                 <option value="">Все годы</option>
                                 {% for year in available_years %}
@@ -176,23 +219,138 @@
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <button class="btn btn-primary w-100" onclick="loadSalaryHistory()">
-                                Загрузить
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button class="btn btn-primary rounded-pill w-100" onclick="loadSalaryHistory()">
+                                <i class="bi bi-search me-2"></i>Загрузить
                             </button>
                         </div>
                     </div>
 
-                    <div id="historyContent" class="table-responsive">
-                    </div>
+                    <div id="historyContent" class="table-responsive"></div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<style>
+    .text-gradient-primary {
+        background: linear-gradient(135deg, #007bff, #6610f2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .bg-purple { background-color: #9e6bff; }
+    .bg-pink { background-color: #965f7f; }
+    .bg-cyan { background-color: #40e0d0; }
+
+    .card {
+        border-radius: 16px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .table {
+        margin-bottom: 0;
+    }
+
+    .table th {
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #e9ecef;
+        padding: 1rem 0.5rem;
+    }
+
+    .table td {
+        padding: 1rem 0.5rem;
+        border-bottom: 1px solid #f8f9fa;
+    }
+
+    .table tbody tr {
+        transition: background-color 0.2s ease;
+    }
+
+    .table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .top-moderator-cell {
+        cursor: pointer;
+        min-width: 60px;
+    }
+
+    .top-moderator-cell:hover .top-moderator-checkbox-container {
+        display: block !important;
+    }
+
+    .top-moderator-cell:hover .top-moderator-indicator {
+        display: none;
+    }
+
+    .top-moderator-checkbox-container {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 10;
+    }
+
+    .top-moderator-checkbox {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+    }
+
+    .top-moderator-indicator {
+        font-size: 1.2rem;
+    }
+
+    .nav-pills .nav-link {
+        padding: 0.75rem 1.5rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .nav-pills .nav-link.active {
+        background: linear-gradient(135deg, #007bff, #6610f2);
+        box-shadow: 0 4px 15px rgba(102, 16, 242, 0.3);
+    }
+
+    .btn {
+        transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .form-control, .form-select {
+        border-radius: 10px;
+        border: 2px solid #e9ecef;
+        transition: border-color 0.2s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.1);
+    }
+
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.75rem;
+    }
+</style>
+
 <script>
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const CURRENT_ACCESS = parseInt(document.getElementById('userAuthData').dataset.accessLevel) || 0;
+    const token = localStorage.getItem("jwt");
 
     function editStats(userId) {
         fetch(`/get-mod-stats?user_id=${userId}`)
@@ -221,8 +379,10 @@
         headers: {
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
-          'X-API-KEY': '123'
-        }
+          'Authorization': `Bearer ${token}`,
+          'X-CSRFToken': csrfToken,
+        },
+         credentials: "include"
       })
       .then(r => r.json())
       .then(d => {
@@ -239,36 +399,84 @@
       });
     }
 
-    function payoutSalaries() {
-      if (!confirm('Выдать зарплаты всем модераторам за текущий месяц?')) return;
+    let currentTopModerator = null;
 
-      fetch('/payout-salaries', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest',
-          'X-API-KEY': '123'
+    function toggleTopModerator(checkbox) {
+        const userId = checkbox.dataset.userId;
+        const isChecked = checkbox.checked;
+
+        if (isChecked && currentTopModerator && currentTopModerator !== userId) {
+            const previousCheckbox = document.querySelector(`.top-moderator-checkbox[data-user-id="${currentTopModerator}"]`);
+            if (previousCheckbox) {
+                previousCheckbox.checked = false;
+                updateTopModeratorIndicator(previousCheckbox.dataset.userId, false);
+            }
         }
-      })
-      .then(r => r.json())
-      .then(d => {
-        if (d.success) {
-          if (d.updated === 0) {
-            alert('Нечего выдавать: сначала нужно рассчитать ЗП.');
-          } else {
-            alert(`Зарплата выдана ${d.updated} сотрудникам.`);
-          }
-          location.reload();
-        } else {
-          alert('Ошибка: ' + (d.error || 'Неизвестная ошибка'));
+
+        if (isChecked) {
+            currentTopModerator = userId;
+        } else if (currentTopModerator === userId) {
+            currentTopModerator = null;
         }
-      })
-      .catch(err => {
-        console.error('Ошибка:', err);
-        alert('Ошибка выдачи зарплат');
-      });
+
+        updateTopModeratorIndicator(userId, isChecked);
+        saveTopModeratorStatus(userId, isChecked);
     }
 
+    function updateTopModeratorIndicator(userId, isChecked) {
+        const indicator = document.querySelector(`.top-moderator-indicator[data-user-id="${userId}"]`);
+        if (indicator) {
+            indicator.className = `top-moderator-indicator ${isChecked ? 'text-success' : 'text-muted'}`;
+            indicator.innerHTML = `<i class="bi bi-${isChecked ? 'check-circle-fill' : 'circle'}"></i>`;
+        }
+    }
+
+    function saveTopModeratorStatus(userId, isTopModerator) {
+        fetch('/set-top-moderator', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Authorization': `Bearer ${token}`,
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                is_top_moderator: isTopModerator
+            }),
+            credentials: "include"
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                alert('Ошибка сохранения статуса топ-модератора');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            alert('Ошибка сохранения статуса топ-модератора');
+        });
+    }
+
+    function payoutSalaries() {
+        if (!confirm('Выдать зарплаты всем модераторам за текущий месяц?')) return;
+
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+
+        fetch('/payout-salaries', {
+            method: 'POST',
+            body: formData,
+            credentials: "include"
+        })
+        .then(r => r.json())
+        .then(d => {
+        })
+        .catch(err => {
+            console.error('Ошибка:', err);
+            alert('Ошибка выдачи зарплат');
+        });
+    }
 
     function loadSalaryHistory() {
         const month = document.getElementById('historyMonth').value;
@@ -290,21 +498,11 @@
         triggerTabList.forEach(triggerEl => {
             new bootstrap.Tab(triggerEl);
         });
+
+        const checkedCheckbox = document.querySelector('.top-moderator-checkbox:checked');
+        if (checkedCheckbox) {
+            currentTopModerator = checkedCheckbox.dataset.userId;
+        }
     });
 </script>
-
-<style>
-    .table th {
-        font-size: 0.85rem;
-        vertical-align: middle;
-    }
-    .table td {
-        font-size: 0.9rem;
-        vertical-align: middle;
-    }
-    .btn-sm {
-        padding: 0.15rem 0.5rem;
-        font-size: 0.75rem;
-    }
-</style>
 {% endblock %}

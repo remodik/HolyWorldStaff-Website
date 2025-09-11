@@ -1,44 +1,133 @@
+import ast
 import asyncio
 import json
+import operator
+import os
 import re
 import threading
 from datetime import datetime
 from functools import wraps
 
+import aiohttp
+import bleach
+import markdown
 import requests
-from flask import Flask, render_template, redirect, url_for, request, flash, abort, jsonify, make_response
-from flask_jwt_extended import JWTManager, create_access_token
+import unicodedata
+from dotenv import load_dotenv
+from flask import Flask, render_template, redirect, url_for, request, flash, abort, jsonify
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_wtf import CSRFProtect
+from flask_wtf.csrf import generate_csrf
+from markdown.extensions.fenced_code import FencedCodeExtension
+from markdown.extensions.tables import TableExtension
 from sqlalchemy import select
 
 from config import Config
-from discord_bot import get_user_access_level, run_bot, remove_staff_roles, add_staff_roles
+from discord_bot import get_user_access_level, run_bot, add_staff_roles
 from models import db, User, Guide, ResponseTemplate, StaffRole, SalaryHistory, ModeratorStats, PurchaseRequest, \
-    VacationRequest
+    VacationRequest, Dismissal, TaskCompletion, StaffTask
 
-app = Flask(__name__, template_folder='templates', static_folder='static')
+load_dotenv()
+app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config.from_object(Config)
+
+
+@app.template_filter('markdown')
+def markdown_filter(text):
+    if not text:
+        return ""
+    try:
+        html = markdown.markdown(
+            text,
+            extensions=[
+                FencedCodeExtension(),
+                TableExtension(),
+                'nl2br',
+                'sane_lists'
+            ],
+            output_format='html5'
+        )
+        return bleach.clean(
+            html,
+            tags=['p', 'b', 'i', 'u', 'strong', 'em', 'ul', 'ol', 'li', 'pre', 'code', 'table', 'tr', 'td', 'th'],
+            attributes={},
+            strip=True
+        )
+    except Exception:
+        return text
+
+
+@app.template_filter('slugify')
+def slugify_filter(text):
+    if not text:
+        return ""
+    try:
+        text = unicodedata.normalize('NFKD', text)
+        text = text.encode('ascii', 'ignore').decode('ascii')
+        text = re.sub(r'[^\w\s-]', '', text.lower())
+        text = re.sub(r'[-\s]+', '-', text).strip('-')
+        return text
+    except Exception:
+        return text.lower().replace(' ', '-').replace('/', '-')
+
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=generate_csrf)
+
+
 app.config['SQLALCHEMY_FUTURE'] = True
-app.config['JWT_SECRET_KEY'] = 'your-secret-key'
+app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
+app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY")
+app.debug = True
 jwt = JWTManager(app)
 db.init_app(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+csrf = CSRFProtect(app)
+loop = asyncio.new_event_loop()
+
+
+def run_async(coro):
+    try:
+        asyncio.run_coroutine_threadsafe(coro, loop)
+        return True
+    except Exception as e:
+        app.logger.error(f"Ошибка при запуске асинхронной задачи: {e}")
+        raise
+
+
 threading.Thread(target=run_bot, daemon=True).start()
-API_KEYS = {
-    "DISCORD_BOT": "123",
+
+ALLOWED_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.Pow: operator.pow,
+    ast.USub: operator.neg,
 }
 
+def safe_eval(expr):
+    if not re.fullmatch(r"[0-9+\-*/() ]+", expr):
+        raise ValueError("Недопустимые символы")
+    return int(eval(expr, {"__builtins__": None}, {}))
 
-def api_key_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        api_key = request.headers.get('X-API-KEY') or request.args.get('api_key')
-        if not api_key or api_key not in API_KEYS.values():
-            return jsonify({"error": "Хули надо?"}), 403
-        return f(*args, **kwargs)
-    return decorated_function
+
+def require_access(min_level=1):
+    def wrapper(fn):
+        @wraps(fn)
+        @jwt_required()
+        def decorated(*args, **kwargs):
+            user_id = get_jwt_identity()
+            user = User.query.get(user_id)
+            if not user or user.access_level < min_level:
+                return jsonify({"success": False, "error": "Недостаточно прав"}), 403
+            return fn(*args, **kwargs)
+        return decorated
+    return wrapper
 
 
 def staff_required(access_level=1):
@@ -51,19 +140,6 @@ def staff_required(access_level=1):
                     return jsonify({"success": False, "error": "Недостаточно прав"}), 403
                 flash('Недостаточно прав для доступа!', 'danger')
                 return redirect(url_for('dashboard'))
-            return f(*args, **kwargs)
-        return decorated_function
-    return decorator
-
-
-def api_staff_required(access_level=1):
-    def decorator(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            if not current_user.is_authenticated:
-                return jsonify({"success": False, "error": "Не авторизован"}), 401
-            if current_user.access_level < access_level:
-                return jsonify({"success": False, "error": "Недостаточно прав"}), 403
             return f(*args, **kwargs)
         return decorated_function
     return decorator
@@ -92,7 +168,7 @@ def load_user(user_id):
 
 @app.before_request
 def create_tables():
-    db.create_all()
+    pass
 
 
 DISCORD_API_URL = 'https://discord.com/api/v10'
@@ -137,7 +213,6 @@ def login():
 
 
 @app.route('/logout')
-@staff_required(access_level=0)
 def logout():
     logout_user()
     flash('Вы успешно вышли из системы!', 'info')
@@ -163,9 +238,6 @@ def auth_callback():
     discord_user_id = user_data['id']
 
     access_level = get_user_access_level(int(discord_user_id))
-    if access_level == 0:
-        flash('У вас нет доступа к системе! Обратитесь к администратору.', 'danger')
-        return redirect(url_for('index'))
 
     user = User.query.get(discord_user_id)
     avatar_url = f"https://cdn.discordapp.com/avatars/{discord_user_id}/{user_data['avatar']}.png" if user_data[
@@ -173,7 +245,7 @@ def auth_callback():
 
     if not user:
         user = User(
-            id=discord_user_id,
+            _id=discord_user_id,
             username=f"{user_data['username']}",
             avatar=avatar_url,
             access_level=access_level
@@ -192,7 +264,10 @@ def auth_callback():
 @app.route('/staff-list')
 @staff_required()
 def staff_list():
-    staff_members = User.query.filter(User.access_level > 0, User.dismissal_date.is_(None)).order_by(User.access_level.desc()).all()
+    staff_members = User.query.filter(
+        User.access_level > 0,
+        User.id != int(os.getenv("BOT_USER_ID", "0"))
+    ).order_by(User.access_level.desc()).all()
     staff_roles = StaffRole.query.order_by(StaffRole.access_level.desc()).all()
     return render_template('staff-list.html',
                          staff_members=staff_members,
@@ -236,6 +311,7 @@ def update_staff_roles():
         role.responsibilities = responsibilities
     else:
         role_name = {
+            7: "Администратор",
             6: "Куратор дискорда",
             5: "Зам.Куратора дискорда",
             4: "Гл.Модератор дискорда",
@@ -314,23 +390,25 @@ def get_staff_member():
     except ValueError:
         return jsonify({'error': 'Неверный формат ID'}), 400
 
-    member = User.query.get(member_id_int)
-    if not member:
+    user = db.session.get(User, member_id_int)
+    if not user:
         return jsonify({'error': 'Сотрудник не найден'}), 404
 
+    dismissal = Dismissal.query.filter_by(user_id=user.id).order_by(Dismissal.date.desc()).first()
+
     return jsonify({
-        'id': str(member.id),
-        'full_name': member.full_name or '',
-        'nickname': member.nickname or '',
-        'username': member.username or '',
-        'salary': member.salary or '',
-        'warnings': member.warnings or '0/0',
-        'vacation_date': member.vacation_date.strftime('%d.%m.%Y') if member.vacation_date else '',
-        'join_date': member.join_date.strftime('%d.%m.%Y') if member.join_date else '',
-        'dismissal_date': member.dismissal_date.strftime('%d.%m.%Y') if member.dismissal_date else '',
-        'dismissal_reason': member.dismissal_reason or '',
-        'previous_access_level': getattr(member, 'previous_access_level', 0),
-        'vk_link': member.vk_link or ''
+        'id': str(user.id),
+        'username': user.username or '',
+        'full_name': user.full_name or '',
+        'nickname': user.nickname or '',
+        'salary': user.salary or '',
+        'warnings': user.warnings or '0/0',
+        'vacation_date': user.vacation_date.strftime('%Y-%m-%d') if user.vacation_date else '',
+        'join_date': user.join_date.strftime('%Y-%m-%d') if user.join_date else '',
+        'vk_link': user.vk_link or '',
+        'email': user.email or '',
+        'access_level': user.access_level,
+        'previous_access_level': dismissal.previous_access_level if dismissal else 0
     })
 
 
@@ -338,7 +416,6 @@ def get_staff_member():
 @staff_required(access_level=4)
 def update_staff_member():
     try:
-
         member_id = request.form.get('member_id')
         if not member_id:
             return jsonify({'error': 'ID сотрудника не указан'}), 400
@@ -350,8 +427,8 @@ def update_staff_member():
         salary_input = request.form.get('salary', '').strip()
 
         try:
-            if re.fullmatch(r"[0-9+\-*/(). ]+", salary_input):
-                result = eval(salary_input, {"__builtins__": {}})
+            if salary_input:
+                result = safe_eval(salary_input)
                 member.salary = str(int(result))
             else:
                 member.salary = member.salary or "0"
@@ -489,11 +566,11 @@ def delete_guide(guide_id):
 
 
 @app.route('/api/staff', methods=['GET'])
+@jwt_required()
 def get_all_staff():
     try:
         staff = User.query.order_by(User.access_level.desc()).all()
         staff_list = []
-
         for member in staff:
             staff_list.append({
                 'id': str(member.id),
@@ -507,22 +584,14 @@ def get_all_staff():
                 'vacation_date': member.vacation_date.strftime('%d.%m.%Y') if member.vacation_date else None,
                 'join_date': member.join_date.strftime('%d.%m.%Y') if member.join_date else None
             })
-
-        return jsonify({
-            'success': True,
-            'staff': staff_list,
-            'count': len(staff_list)
-        })
-
+        return jsonify({'success': True, 'staff': staff_list, 'count': len(staff_list)})
     except Exception as e:
-        return make_response(jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/update-warnings', methods=['POST'])
 @staff_required(access_level=4)
+@csrf.exempt
 def update_warnings():
     try:
         data = request.get_json()
@@ -536,6 +605,9 @@ def update_warnings():
         member = User.query.get(member_id)
         if not member:
             return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+
+        if current_user.access_level <= member.access_level:
+            return jsonify({'success': False, 'error': 'Недостаточно прав'}), 403
 
         current_warnings = member.warnings.split('/') if member.warnings else ['0', '0']
         warn_count = int(current_warnings[0])
@@ -552,36 +624,28 @@ def update_warnings():
 
         member.warnings = f"{warn_count}/{pred_count}"
 
-        if warn_count >= 2:
-            member.previous_access_level = member.access_level
-            member.access_level = 0
-            member.dismissal_date = datetime.now().date()
-            member.dismissal_reason = "2/2 выговора"
+        if warn_count >= 2 and change > 0:
+            dismissal = Dismissal(
+                user_id=member.id,
+                date=datetime.now(),
+                reason="2/2 выговора",
+                previous_access_level=member.access_level,
+                dismissed_by=current_user.id if current_user.is_authenticated else None
+            )
+            db.session.add(dismissal)
 
+            member.access_level = 0
             warn_count -= 2
+            member.warnings = f"{warn_count}/{pred_count}"
 
             db.session.commit()
-
             return jsonify({
                 'success': True,
                 'dismissed': True,
                 'message': 'Сотрудник снят с должности: 2/2 выговора'
             })
 
-        additional_data = json.loads(member.additional_data) if member.additional_data else {}
-        if 'dismissal_history' not in additional_data:
-            additional_data['dismissal_history'] = []
-
-        additional_data['dismissal_history'].append({
-            'date': datetime.now().date().isoformat(),
-            'reason': member.dismissal_reason or "2/2 выговора",
-            'previous_access_level': member.previous_access_level or member.previous_access_level,
-            'dismissed_by': current_user.id if current_user.is_authenticated else None
-        })
-        member.additional_data = json.dumps(additional_data)
-
         db.session.commit()
-
         return jsonify({
             'success': True,
             'new_warnings': member.warnings,
@@ -592,6 +656,7 @@ def update_warnings():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 
 @app.route('/salary')
@@ -605,7 +670,7 @@ def salary_page():
         year=current_year
     ).all()
 
-    moderators = User.query.filter(User.access_level.between(1, 4)).all()
+    moderators = User.query.filter(User.access_level.between(1, 5)).all()
     for moderator in moderators:
         if not any(stat.user_id == moderator.id for stat in current_stats):
             new_stat = ModeratorStats(
@@ -641,7 +706,8 @@ def salary_page():
 
 
 @app.route('/payout-salaries', methods=['POST'])
-@api_staff_required(access_level=5)
+@require_access(min_level=5)
+@csrf.exempt
 def payout_salaries():
     try:
         current_month = datetime.now().month
@@ -667,11 +733,17 @@ def payout_salaries():
         return jsonify({'success': True, 'updated': updated})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 def calculate_salaries(stats):
     results = {}
+
+    current_top_moderator = None
+    for stat in stats:
+        if hasattr(stat, 'is_top_moderator') and stat.is_top_moderator:
+            current_top_moderator = stat.user_id
+            break
 
     if not stats:
         return results
@@ -687,7 +759,6 @@ def calculate_salaries(stats):
         stat.adjusted_punishments = punishments
 
     sorted_by_punishments = sorted(stats, key=lambda x: x.adjusted_punishments, reverse=True)
-    sorted_by_tickets = sorted(stats, key=lambda x: x.tickets_closed, reverse=True)
 
     ranks = {stat.user_id: i + 1 for i, stat in enumerate(sorted_by_punishments)}
 
@@ -745,7 +816,7 @@ def calculate_salaries(stats):
             bonus_sum += 0.05
             positive_details.append("x1.05")
 
-        if sorted_by_tickets and stat == sorted_by_tickets[0]:
+        if stat.user_id == current_top_moderator:
             bonus_sum += 0.1
             positive_details.append("x1.1")
 
@@ -770,7 +841,9 @@ def calculate_salaries(stats):
                               "x1.15" if 20 <= tickets < 30 else
                               "x1.2" if 30 <= tickets < 40 else
                               "x1.25" if tickets >= 40 else "-",
-            'top_mod_display': "x1.1" if (sorted_by_tickets and stat == sorted_by_tickets[0]) else "-",
+            'top_mod_display': "x1.1" if stat.user_id == current_top_moderator else "-",
+            'top_moderator': stat.user_id == current_top_moderator,
+            'is_top_moderator': stat.user_id == current_top_moderator,
             'weeks_missed': stat.weeks_missed,
             'weeks_display': f"-{stat.weeks_missed * 5}%" if stat.weeks_missed > 0 else "-",
             'positive_details': positive_details,
@@ -851,7 +924,8 @@ def get_mod_stats():
 
 
 @app.route('/calculate-salaries', methods=['POST'])
-@api_staff_required(access_level=5)
+@require_access(min_level=5)
+@csrf.exempt
 def calculate_salaries_route():
     try:
         current_month = datetime.now().month
@@ -883,18 +957,18 @@ def calculate_salaries_route():
                     'rank': data['rank'],
                     'positive_details': data['positive_details'],
                     'negative_details': data['negative_details'],
-                    'weeks_missed': data['weeks_missed']
+                    'weeks_missed': data['weeks_missed'],
+                    'is_top_moderator': data['is_top_moderator']
                 })
             )
             db.session.add(salary)
 
         db.session.commit()
-
         return jsonify({'success': True})
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/salary-history')
@@ -957,6 +1031,49 @@ def salary_history():
     html += '</tbody></table>'
 
     return jsonify({'html': html})
+
+
+@app.route('/set-top-moderator', methods=['POST'])
+@require_access(min_level=5)
+@csrf.exempt
+def set_top_moderator():
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        is_top_moderator = data.get('is_top_moderator')
+
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+
+        if is_top_moderator:
+            ModeratorStats.query.filter_by(
+                month=current_month,
+                year=current_year
+            ).update({'is_top_moderator': False})
+
+        stat = ModeratorStats.query.filter_by(
+            user_id=user_id,
+            month=current_month,
+            year=current_year
+        ).first()
+
+        if stat:
+            stat.is_top_moderator = is_top_moderator
+        else:
+            stat = ModeratorStats(
+                user_id=user_id,
+                month=current_month,
+                year=current_year,
+                is_top_moderator=is_top_moderator
+            )
+            db.session.add(stat)
+
+        db.session.commit()
+        return jsonify({'success': True})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/purchase-shop')
@@ -1248,50 +1365,48 @@ def get_vacation_requests():
 @app.route('/dismissed-staff')
 @staff_required(access_level=4)
 def dismissed_staff():
-    entries = []
-    users = User.query.all()
-    for user in users:
-        additional = json.loads(user.additional_data) if user.additional_data else {}
-        for hist in additional.get('dismissal_history', []):
-            try:
-                ddate = datetime.fromisoformat(hist.get('date')).date() if hist.get('date') else None
-            except Exception:
-                ddate = None
-            entries.append({
-                'id': str(user.id),
-                'avatar': user.avatar,
-                'full_name': user.full_name,
-                'nickname': user.nickname,
-                'previous_access_level': hist.get('previous_access_level', user.previous_access_level or 0),
-                'username': user.username,
-                'warnings': user.warnings or '0/0',
-                'dismissal_date': ddate,
-                'dismissal_reason': hist.get('reason') or user.dismissal_reason,
-                'vk_link': user.vk_link
-            })
+    dismissed_members = Dismissal.query.order_by(Dismissal.date.desc()).all()
+    return render_template('dismissed-staff.html', dismissed_members=dismissed_members)
 
-        if not additional.get('dismissal_history') and user.access_level == 0 and user.dismissal_date:
-            entries.append({
-                'id': str(user.id),
-                'avatar': user.avatar,
-                'full_name': user.full_name,
-                'nickname': user.nickname,
-                'previous_access_level': getattr(user, 'previous_access_level', 0),
-                'username': user.username,
-                'warnings': user.warnings or '0/0',
-                'dismissal_date': user.dismissal_date,
-                'dismissal_reason': user.dismissal_reason,
-                'vk_link': user.vk_link
-            })
 
-    # сортируем по дате снятия (последние сверху)
-    entries.sort(key=lambda x: x['dismissal_date'] or datetime.min.date(), reverse=True)
+async def remove_staff_roles_discord_api(user_id):
+    try:
+        headers = {
+            'Authorization': f'Bot {Config.DISCORD_BOT_TOKEN}',
+            'Content-Type': 'application/json'
+        }
 
-    return render_template('dismissed-staff.html', dismissed_members=entries)
+        guild_id = Config.DISCORD_GUILD_ID
+        url = f'https://discord.com/api/v10/guilds/{guild_id}/members/{user_id}'
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as response:
+                if response.status == 200:
+                    member_data = await response.json()
+                    current_roles = member_data.get('roles', [])
+
+                    staff_role_ids = [str(role_id) for role_id in [1398628811586801754, 1315002924048318511]]
+                    new_roles = [role for role in current_roles if role not in staff_role_ids]
+
+                    async with session.patch(url, headers=headers, json={'roles': new_roles}) as patch_response:
+                        if patch_response.status in [200, 204]:
+                            print(f"Роли успешно обновлены для пользователя {user_id}")
+                            return True
+                        else:
+                            print(f"Ошибка при обновлении ролей: {patch_response.status}")
+                            return False
+                else:
+                    print(f"Ошибка при получении данных пользователя: {response.status}")
+                    return False
+
+    except Exception as e:
+        print(f"Ошибка в Discord API: {e}")
+        return False
 
 
 @app.route('/dismiss-staff-member', methods=['POST'])
 @staff_required(access_level=4)
+@csrf.exempt
 def dismiss_staff_member():
     try:
         data = request.get_json() or {}
@@ -1299,43 +1414,58 @@ def dismiss_staff_member():
         reason = data.get('reason', 'Снятие без причины')
         remove_roles = data.get('remove_roles', True)
 
-        member = User.query.get(member_id)
+        if not member_id:
+            return jsonify({'success': False, 'error': 'ID сотрудника не указан'}), 400
+
+        member = db.session.get(User, int(member_id))
         if not member:
             return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
 
-        # --- сохраняем в историю снятий в additional_data ---
-        additional_data = json.loads(member.additional_data) if member.additional_data else {}
-        if 'dismissal_history' not in additional_data:
-            additional_data['dismissal_history'] = []
+        previous_access = member.access_level
 
-        additional_data['dismissal_history'].append({
-            'date': datetime.now().date().isoformat(),
-            'reason': reason,
-            'previous_access_level': member.access_level,
-            'dismissed_by': current_user.id
-        })
-        member.additional_data = json.dumps(additional_data)
+        dismissal = Dismissal(
+            user_id=member.id,
+            reason=reason,
+            previous_access_level=previous_access,
+            dismissed_by=current_user.id
+        )
 
-        member.previous_access_level = member.access_level
         member.access_level = 0
-        member.dismissal_date = datetime.now().date()
-        member.dismissal_reason = reason
+        member.previous_access_level = previous_access
 
+        db.session.add(dismissal)
         db.session.commit()
 
-        if remove_roles:
-            def _call_remove():
-                try:
-                    if asyncio.iscoroutinefunction(remove_staff_roles):
-                        asyncio.run(remove_staff_roles(member.id))
-                    else:
-                        remove_staff_roles(member.id)
-                except Exception:
-                    app.logger.exception("remove_staff_roles failed")
+        print(f"Сотрудник {member.id} снят. Предыдущий уровень: {previous_access}, текущий: {member.access_level}")
 
-            threading.Thread(target=_call_remove, daemon=True).start()
+        if remove_roles:
+            try:
+                result = run_async(remove_staff_roles_discord_api(member.id))
+                print(f"Результат снятия ролей: {result}")
+            except Exception as e:
+                print(f"Ошибка при снятии ролей: {e}")
 
         return jsonify({'success': True})
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Общая ошибка при снятии: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/delete-dismissal/<int:dismissal_id>', methods=['DELETE'])
+@staff_required(access_level=6)
+@csrf.exempt
+def delete_dismissal(dismissal_id):
+    try:
+        dismissal = db.session.get(Dismissal, dismissal_id)
+        if not dismissal:
+            return jsonify({'success': False, 'error': 'Запись не найдена'}), 404
+
+        db.session.delete(dismissal)
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Запись успешно удалена'})
 
     except Exception as e:
         db.session.rollback()
@@ -1346,19 +1476,15 @@ def dismiss_staff_member():
 @staff_required(access_level=6)
 def clear_dismissed_list():
     try:
-        dismissed_members = User.query.filter(
-            User.access_level == 0,
-            User.dismissal_date.isnot(None)
-        ).all()
+        to_delete = Dismissal.query.all()
+        deleted_count = len(to_delete)
 
-        for member in dismissed_members:
-            member.access_level = 1
-            member.dismissal_date = None
-            member.dismissal_reason = None
+        for dismissal in to_delete:
+            db.session.delete(dismissal)
 
         db.session.commit()
 
-        return jsonify({'success': True, 'cleared_count': len(dismissed_members)})
+        return jsonify({'success': True, 'cleared_count': deleted_count})
 
     except Exception as e:
         db.session.rollback()
@@ -1367,56 +1493,111 @@ def clear_dismissed_list():
 
 @app.route('/rehire-staff-member', methods=['POST'])
 @staff_required(access_level=4)
+@csrf.exempt
 def rehire_staff_member():
     try:
         data = request.get_json() or {}
         member_id = data.get('member_id')
-        access_level = int(data.get('access_level', 1))
+        new_access_level = int(data.get('access_level', 1))
         join_date = data.get('join_date')
         notes = data.get('notes', '')
 
-        member = User.query.get(member_id)
-        if not member:
+        if not member_id:
+            return jsonify({'success': False, 'error': 'ID сотрудника не указан'}), 400
+
+        user = db.session.get(User, int(member_id))
+        if not user:
             return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
 
-        additional_data = json.loads(member.additional_data) if member.additional_data else {}
-        if 'rehire_history' not in additional_data:
-            additional_data['rehire_history'] = []
+        dismissal = (Dismissal.query
+                     .filter_by(user_id=user.id, rehired=False)
+                     .order_by(Dismissal.date.desc())
+                     .first())
 
-        rehire_info = {
+        user.access_level = new_access_level
+        if join_date:
+            try:
+                user.join_date = datetime.strptime(join_date, '%Y-%m-%d').date()
+            except Exception as e:
+                raise e
+
+        if dismissal:
+            dismissal.rehired = True
+            dismissal.rehired_date = datetime.now()
+            dismissal.rehired_by = current_user.id
+
+        additional_data = json.loads(user.additional_data) if user.additional_data else {}
+        additional_data.setdefault('rehire_history', [])
+        additional_data['rehire_history'].append({
             'rehire_date': datetime.now().date().isoformat(),
             'rehire_notes': notes,
             'rehired_by': current_user.id,
-            'new_access_level': access_level,
-            'new_join_date': join_date
-        }
-        additional_data['rehire_history'].append(rehire_info)
-        member.additional_data = json.dumps(additional_data)
-
-        member.previous_access_level = member.previous_access_level or 0
-        member.access_level = access_level
-        if join_date:
-            try:
-                member.join_date = datetime.strptime(join_date, '%Y-%m-%d').date()
-            except Exception:
-                pass
-
-        member.dismissal_date = None
-        member.dismissal_reason = None
+            'new_access_level': new_access_level
+        })
+        user.additional_data = json.dumps(additional_data)
 
         db.session.commit()
 
-        def _assign_roles():
-            try:
-                if asyncio.iscoroutinefunction(add_staff_roles):
-                    asyncio.run(add_staff_roles(member.id))
-                else:
-                    add_staff_roles(member.id)
-            except Exception:
-                app.logger.exception("assign roles failed")
+        try:
+            run_async(add_staff_roles(user.id))
+        except Exception as e:
+            app.logger.error(f"Ошибка при назначении ролей: {e}")
 
-        threading.Thread(target=_assign_roles, daemon=True).start()
+        return jsonify({'success': True})
 
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/update-dismissed-member', methods=['POST'])
+@staff_required(access_level=4)
+@csrf.exempt
+def update_dismissed_member():
+    try:
+        data = request.get_json() or {}
+        dismissal_id = data.get('member_id')
+        if not dismissal_id:
+            return jsonify({'success': False, 'error': 'ID не указан'}), 400
+
+        dismissal = db.session.get(Dismissal, int(dismissal_id))
+        if not dismissal:
+            return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+
+        user = dismissal.user
+
+        dismissal.previous_access_level = int(data.get('position', dismissal.previous_access_level or 0))
+
+        dismissal.reason = data.get('dismissal_reason', dismissal.reason)
+
+        warning_dates = data.get('warning_dates[]', [])
+        warning_reasons = data.get('warning_reasons[]', [])
+
+        if isinstance(warning_dates, str):
+            warning_dates = [warning_dates]
+        if isinstance(warning_reasons, str):
+            warning_reasons = [warning_reasons]
+
+        warnings = []
+        for d, r in zip(warning_dates, warning_reasons):
+            if d or r:
+                warnings.append({"date": d, "reason": r})
+
+        dismissal.warnings_history = json.dumps(warnings, ensure_ascii=False)
+
+        if 'dismissal_notes' in data:
+            setattr(dismissal, 'notes', data['dismissal_notes'])
+
+        if data.get('join_date'):
+            user.join_date = datetime.strptime(data['join_date'], '%Y-%m-%d').date()
+        if data.get('dismissal_date'):
+            dismissal.date = datetime.strptime(data['dismissal_date'], '%Y-%m-%d').date()
+
+        user.vk_link = data.get('vk_link', user.vk_link)
+        if 'email' in data:
+            user.email = data['email']
+
+        db.session.commit()
         return jsonify({'success': True})
 
     except Exception as e:
@@ -1427,84 +1608,300 @@ def rehire_staff_member():
 @app.route('/get-dismissed-member-details')
 @staff_required(access_level=4)
 def get_dismissed_member_details():
+    dismissal_id = request.args.get('id')
+    if not dismissal_id:
+        return jsonify({'success': False, 'error': 'ID не указан'}), 400
+
+    dismissal = db.session.get(Dismissal, int(dismissal_id))
+    if not dismissal:
+        return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+
+    user = dismissal.user
+
+    warnings_history = []
+    if dismissal.warnings_history:
+        try:
+            warnings_history = json.loads(dismissal.warnings_history)
+        except Exception:
+            warnings_history = []
+
+    return jsonify({
+        'id': dismissal.id,
+        'user_id': user.id,
+        'username': user.username or '',
+        'full_name': user.full_name or '',
+        'nickname': user.nickname or '',
+        'vk_link': user.vk_link or '',
+        'previous_access_level': dismissal.previous_access_level or 0,
+        'dismissal_reason': dismissal.reason or '',
+        'dismissal_notes': dismissal.notes or '',
+        'join_date': user.join_date.strftime('%Y-%m-%d') if user.join_date else '',
+        'dismissal_date': dismissal.date.strftime('%Y-%m-%d') if dismissal.date else '',
+        'email': getattr(user, 'email', ''),
+        'discord_id': str(user.id),
+        'warnings_history': warnings_history
+    })
+
+
+@app.route('/get-dismissed-staff-member')
+@staff_required(access_level=4)
+def get_dismissed_staff_member():
     member_id = request.args.get('id')
     if not member_id:
         return jsonify({'error': 'ID сотрудника не указан'}), 400
 
-    member = User.query.get(member_id)
-    if not member:
+    try:
+        member_id_int = int(member_id)
+    except ValueError:
+        return jsonify({'error': 'Неверный формат ID'}), 400
+
+    user = db.session.get(User, member_id_int)
+    if not user:
         return jsonify({'error': 'Сотрудник не найден'}), 404
 
-    additional_data = json.loads(member.additional_data) if member.additional_data else {}
+    last_dismissal = (Dismissal.query
+                      .filter_by(user_id=user.id, rehired=False)
+                      .order_by(Dismissal.date.desc())
+                      .first())
 
     return jsonify({
-        'id': str(member.id),
-        'full_name': member.full_name or '',
-        'nickname': member.nickname or '',
-        'username': member.username or '',
-        'previous_access_level': member.previous_access_level or 0,
-        'dismissal_reason': member.dismissal_reason or '',
-        'join_date': member.join_date.strftime('%Y-%m-%d') if member.join_date else '',
-        'dismissal_date': member.dismissal_date.strftime('%Y-%m-%d') if member.dismissal_date else '',
-        'vk_link': member.vk_link or '',
-        'additional_data': additional_data
+        'id': str(user.id),
+        'username': user.username or '',
+        'full_name': user.full_name or '',
+        'nickname': user.nickname or '',
+        'warnings': user.warnings or '0/0',
+        'join_date': user.join_date.strftime('%Y-%m-%d') if user.join_date else '',
+        'dismissal_date': last_dismissal.date.strftime('%Y-%m-%d') if last_dismissal and last_dismissal.date else '',
+        'dismissal_reason': last_dismissal.reason if last_dismissal else '',
+        'vk_link': user.vk_link or '',
+        'email': user.email or '',
+        'previous_access_level': last_dismissal.previous_access_level if last_dismissal else user.access_level
     })
 
 
-@app.route('/update-dismissed-member', methods=['POST'])
-@staff_required(access_level=4)
-def update_dismissed_member():
+@app.route('/staff-tasks')
+@staff_required()
+def staff_tasks():
+    tasks = StaffTask.query.order_by(StaffTask.created_at.desc()).all()
+    user_completions = {}
+
+    if current_user.is_authenticated:
+        completions = TaskCompletion.query.filter_by(user_id=current_user.id).all()
+        for completion in completions:
+            user_completions[completion.task_id] = completion
+
+    return render_template('staff_tasks.html',
+                           tasks=tasks,
+                           user_completions=user_completions,
+                           current_user=current_user)
+
+
+@app.route('/create-task', methods=['POST'])
+@staff_required(access_level=6)
+def create_task():
     try:
-        data = request.get_json()
-        member_id = data.get('member_id')
+        title = request.form.get('title')
+        description = request.form.get('description')
+        reward_type = request.form.get('reward_type', 'per_completion')
+        reward_amount = int(request.form.get('reward_amount', 0))
+        bonus_percentage = float(request.form.get('bonus_percentage', 0))
+        max_completions = int(request.form.get('max_completions', 1))
 
-        member = User.query.get(member_id)
-        if not member:
-            return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+        deadline_str = request.form.get('deadline')
+        deadline = None
+        if deadline_str:
+            deadline = datetime.strptime(deadline_str, '%Y-%m-%dT%H:%M')
 
-        member.vk_link = data.get('vk_link', member.vk_link)
-        member.join_date = datetime.strptime(data.get('join_date'), '%Y-%m-%d').date() if data.get(
-            'join_date') else member.join_date
-        member.dismissal_date = datetime.strptime(data.get('dismissal_date'), '%Y-%m-%d').date() if data.get(
-            'dismissal_date') else member.dismissal_date
-        member.dismissal_reason = data.get('dismissal_reason', member.dismissal_reason)
+        task = StaffTask(
+            title=title,
+            description=description,
+            created_by=current_user.id,
+            reward_type=reward_type,
+            reward_amount=reward_amount,
+            bonus_percentage=bonus_percentage,
+            max_completions=max_completions,
+            deadline=deadline
+        )
 
-        additional_data = {
-            'dismissal_notes': data.get('dismissal_notes', ''),
-            'email': data.get('email', ''),
-            'warnings_history': []
-        }
-
-        warning_dates = data.get('warning_dates', [])
-        warning_reasons = data.get('warning_reasons', [])
-
-        for i in range(len(warning_dates)):
-            if warning_dates[i] and warning_reasons[i]:
-                additional_data['warnings_history'].append({
-                    'date': warning_dates[i],
-                    'reason': warning_reasons[i]
-                })
-
-        member.additional_data = json.dumps(additional_data)
-
+        db.session.add(task)
         db.session.commit()
-        return jsonify({'success': True})
+
+        flash('Задание успешно создано!', 'success')
+        return redirect(url_for('staff_tasks'))
 
     except Exception as e:
         db.session.rollback()
+        flash(f'Ошибка при создании задания: {str(e)}', 'danger')
+        return redirect(url_for('staff_tasks'))
+
+
+@app.route('/complete-task/<int:task_id>', methods=['POST'])
+@staff_required()
+def complete_task(task_id):
+    try:
+        task = StaffTask.query.get_or_404(task_id)
+
+        if not task.is_active2:
+            flash('Это задание больше не активно', 'warning')
+            return redirect(url_for('staff_tasks'))
+
+        proof = request.form.get('proof', '')
+
+        existing_pending = TaskCompletion.query.filter_by(
+            task_id=task_id,
+            user_id=current_user.id,
+            status='pending'
+        ).first()
+
+        if existing_pending:
+            flash('У вас уже есть активная заявка на это задание', 'warning')
+            return redirect(url_for('staff_tasks'))
+
+        if task.reward_type == 'one_time':
+            existing_approved = TaskCompletion.query.filter_by(
+                task_id=task_id,
+                user_id=current_user.id,
+                status='approved'
+            ).first()
+
+            if existing_approved and task.bonus_percentage <= 0:
+                flash('Это задание можно выполнить только один раз', 'warning')
+                return redirect(url_for('staff_tasks'))
+
+        completion = TaskCompletion(
+            task_id=task_id,
+            user_id=current_user.id,
+            proof=proof,
+            status='pending'
+        )
+
+        db.session.add(completion)
+        db.session.commit()
+
+        flash('Заявка на выполнение задания отправлена на рассмотрение!', 'success')
+        return redirect(url_for('staff_tasks'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при отправке заявки: {str(e)}', 'danger')
+        return redirect(url_for('staff_tasks'))
+
+
+@app.route('/review-completion/<int:completion_id>', methods=['POST'])
+@staff_required(access_level=5)
+def review_completion(completion_id):
+    bonus = None
+    try:
+        completion = TaskCompletion.query.get_or_404(completion_id)
+        action = request.form.get('action')
+        review_notes = request.form.get('review_notes', '')
+
+        if completion.status != 'pending':
+            flash('Эта заявка уже обработана', 'warning')
+            return redirect(url_for('staff_tasks'))
+
+        if action == 'approve':
+            user = User.query.get(completion.user_id)
+            task = completion.task
+
+            previous_approved = TaskCompletion.query.filter(
+                TaskCompletion.task_id == task.id,
+                TaskCompletion.user_id == user.id,
+                TaskCompletion.status == 'approved',
+                TaskCompletion.id != completion.id
+            ).count()
+
+            if task.reward_type == 'per_completion':
+                reward = task.reward_amount
+                total_reward = reward
+
+            elif task.reward_type == 'one_time':
+                if previous_approved == 0:
+                    reward = task.reward_amount
+                    bonus = 0
+                    total_reward = reward
+                else:
+                    bonus = int(task.reward_amount * task.bonus_percentage / 100) if task.bonus_percentage > 0 else 0
+                    total_reward = bonus
+
+            else:
+                bonus = 0
+                total_reward = 0
+
+            completion.status = 'approved'
+            completion.reviewed_by = current_user.id
+            completion.completed_at = datetime.now()
+            completion.reviewed_at = datetime.now()
+            completion.review_notes = review_notes
+
+            if total_reward > 0:
+                current_salary = int(user.salary) if user.salary and user.salary.isdigit() else 0
+                user.salary = str(current_salary + total_reward)
+
+                completion.reward_amount = total_reward
+                completion.reward_type = task.reward_type
+                completion.is_bonus = (bonus > 0)
+
+                flash_message = f'Задание одобрено! Начислено: {total_reward}'
+                if bonus > 0:
+                    flash_message += f' (бонус {bonus} за повторное выполнение)'
+                elif previous_approved > 0:
+                    flash_message += f' (повторное выполнение)'
+                flash(flash_message, 'success')
+            else:
+                flash('Задание одобрено, но награда не начислена', 'info')
+
+        elif action == 'reject':
+            completion.status = 'rejected'
+            completion.reviewed_by = current_user.id
+            completion.reviewed_at = datetime.now()
+            completion.review_notes = review_notes
+            flash('Задание отклонено', 'info')
+
+        db.session.commit()
+        return redirect(url_for('staff_tasks'))
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Ошибка при обработке заявки: {str(e)}', 'danger')
+        return redirect(url_for('staff_tasks'))
+
+
+@app.route('/api/staff/<string:member_id>/tasks')
+@jwt_required()
+@csrf.exempt
+def get_staff_tasks_api(member_id):
+    try:
+        user = User.query.get(int(member_id))
+        if not user:
+            return jsonify({'success': False, 'error': 'Сотрудник не найден'}), 404
+
+        completions = TaskCompletion.query.filter_by(user_id=user.id, status='approved').all()
+        tasks_completed = len(completions)
+
+        return jsonify({
+            'success': True,
+            'tasks_completed': tasks_completed,
+            'completions': [{
+                    'task_id': c.task_id,
+                    'task_title': c.task.title,
+                    'completed_at': c.completed_at.strftime('%Y-%m-%d %H:%M'),
+                    'reward': c.task.reward_amount
+                } for c in completions
+            ]
+        })
+    except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @app.route('/api/staff/<string:member_id>', methods=['GET'])
-@api_key_required
+@jwt_required()
+@csrf.exempt
 def get_staff_member_api(member_id):
     try:
         member = User.query.get(int(member_id))
         if not member:
-            return make_response(jsonify({
-                'success': False,
-                'error': 'Сотрудник не найден'
-            }), 404)
+            return jsonify({"success": False, "error": "Сотрудник не найден"}), 404
 
         return jsonify({
             'success': True,
@@ -1523,21 +1920,13 @@ def get_staff_member_api(member_id):
                 'vk_link': member.vk_link
             }
         })
-
-    except ValueError:
-        return make_response(jsonify({
-            'success': False,
-            'error': 'Неверный формат ID'
-        }), 400)
     except Exception as e:
-        return make_response(jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 def get_role_name(access_level):
     roles = {
+        7: "Администратор",
         6: "Куратор дискорда",
         5: "Зам.Куратора дискорда",
         4: "Гл.Модератор дискорда",
@@ -1549,20 +1938,18 @@ def get_role_name(access_level):
 
 
 @app.route('/api/staff/role/<int:access_level>', methods=['GET'])
-@api_key_required
+@jwt_required()
+@csrf.exempt
 def get_staff_by_role(access_level):
     try:
         staff = User.query.filter_by(access_level=access_level).all()
-        staff_list = []
-
-        for member in staff:
-            staff_list.append({
-                'id': str(member.id),
-                'username': member.username,
-                'avatar': member.avatar,
-                'full_name': member.full_name,
-                'nickname': member.nickname
-            })
+        staff_list = [{
+            'id': str(member.id),
+            'username': member.username,
+            'avatar': member.avatar,
+            'full_name': member.full_name,
+            'nickname': member.nickname
+        } for member in staff]
 
         return jsonify({
             'success': True,
@@ -1570,32 +1957,71 @@ def get_staff_by_role(access_level):
             'role': get_role_name(access_level),
             'count': len(staff_list)
         })
-
     except Exception as e:
-        return make_response(jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@app.route('/api/auth', methods=['POST'])
-def auth_api():
+@app.route('/api/auth/discord', methods=['POST'])
+def auth_discord():
     data = request.get_json()
-    user = User.query.filter_by(username=data.get('username')).first()
+    discord_token = data.get('access_token')
 
-    if user and user.access_level > 0:
-        access_token = create_access_token(identity=user.id)
-        return jsonify({
-            'success': True,
-            'token': access_token,
-            'access_level': user.access_level
-        })
+    if not discord_token:
+        return jsonify({"success": False, "error": "Нет access_token"}), 400
 
-    return make_response(jsonify({
-        'success': False,
-        'error': 'Неверные данные или нет доступа'
-    }), 401)
+    headers = {"Authorization": f"Bearer {discord_token}"}
+    user_response = requests.get(f"{DISCORD_API_URL}/users/@me", headers=headers)
+
+    if user_response.status_code != 200:
+        return jsonify({"success": False, "error": "Неверный Discord токен"}), 401
+
+    user_data = user_response.json()
+    discord_user_id = int(user_data['id'])
+
+    user = User.query.get(discord_user_id)
+    if not user:
+        return jsonify({"success": False, "error": "Пользователь не найден"}), 404
+
+    jwt_token = create_access_token(identity=user.id)
+    return jsonify({
+        "success": True,
+        "token": jwt_token,
+        "user": {
+            "id": str(user.id),
+            "username": user.username,
+            "avatar": user.avatar,
+            "access_level": user.access_level
+        }
+    })
+
+
+@app.route('/api/auth/bot', methods=['POST'])
+@csrf.exempt
+def auth_bot():
+    bot_secret = request.json.get("secret")
+    if bot_secret != os.getenv("BOT_API_SECRET"):
+        return jsonify({"success": False, "error": "Unauthorized"}), 403
+
+    bot_user_id = int(os.getenv("BOT_USER_ID", "0"))
+    if not bot_user_id:
+        return jsonify({"success": False, "error": "BOT_USER_ID not configured"}), 500
+
+    bot_user = db.session.get(User, bot_user_id)
+    if not bot_user:
+        bot_user = User(
+            _id=bot_user_id,
+            username="Bot",
+            avatar=None,
+            access_level=0
+        )
+        db.session.add(bot_user)
+        db.session.commit()
+
+    jwt_token = create_access_token(identity=str(bot_user.id))
+    return jsonify({"success": True, "token": jwt_token})
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    with app.app_context():
+        db.create_all()
+    app.run()

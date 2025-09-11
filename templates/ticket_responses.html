@@ -1,68 +1,83 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
+<div class="container py-4">
     <div class="d-flex align-items-center mb-4">
-        <i class="bi bi-ticket-detailed section-icon me-3"></i>
+        <div class="icon-wrapper bg-primary rounded-circle p-2 me-3">
+            <i class="bi bi-ticket-detailed text-white" style="font-size: 1.5rem;"></i>
+        </div>
         <div>
-            <h1 class="mb-0">Ответы на тикеты</h1>
+            <h1 class="mb-1 display-6 fw-bold text-dark">Ответы на тикеты</h1>
             <p class="text-muted mb-0">Быстрые шаблоны для ответов на частые вопросы</p>
         </div>
     </div>
 
-    {% if current_user.access_level >= 2 %}
-    <div class="mb-4">
-        <a href="{{ url_for('add_response_template') }}" class="btn btn-primary">
-            <i class="bi bi-plus-circle me-1"></i> Добавить шаблон
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        {% if current_user.access_level >= 4 %}
+        <a href="{{ url_for('add_response_template') }}" class="btn btn-primary btn-lg">
+            <i class="bi bi-plus-circle me-2"></i>Добавить шаблон
         </a>
-    </div>
-    {% endif %}
+        {% endif %}
 
-    <div class="card shadow-sm">
-        <div class="card-header bg-light d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="bi bi-chat-left-text me-2 text-primary"></i>Шаблоны ответов</h5>
-            <div class="input-group" style="width: 250px;">
-                <label for="searchTemplates"></label><input type="text" id="searchTemplates" class="form-control form-control-sm" placeholder="Поиск...">
-                <button class="btn btn-outline-secondary" type="button">
-                    <i class="bi bi-search"></i>
-                </button>
+        <div class="text-end">
+            <span class="badge bg-light text-dark fs-6" id="templateCounter">
+                <i class="bi bi-collection me-1"></i>
+                <span id="templateCount">{{ response_templates|length }}</span> шаблонов
+            </span>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-light py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-semibold">
+                <i class="bi bi-chat-left-text me-2 text-primary"></i>Шаблоны ответов
+            </h5>
+            <div class="input-group" style="width: 300px;">
+                <span class="input-group-text bg-white border-end-0">
+                    <i class="bi bi-search text-muted"></i>
+                </span>
+                <label for="searchTemplates"></label><input type="text" id="searchTemplates" class="form-control border-start-0" placeholder="Поиск по ситуациям и ответам...">
             </div>
         </div>
+
         <div class="card-body p-0">
+            {% if response_templates %}
             <div class="list-group list-group-flush">
                 {% for template in response_templates %}
-                <div class="list-group-item">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div class="flex-grow-1" style="min-width: 0; cursor: pointer;" 
+                <div class="list-group-item p-4 template-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1 me-3" style="cursor: pointer;"
                              onclick="toggleTemplate('content-{{ template.id }}', this)">
-                            <h6 class="mb-1 text-truncate">{{ template.situation }}</h6>
-                            <p class="mb-0 text-muted text-truncate small template-preview">
-                                {{ template.response|truncate(150) }}
+                            <div class="d-flex align-items-center mb-2">
+                                <span class="badge bg-primary-subtle text-primary fs-6 fw-normal me-2">
+                                    {{ loop.index }}
+                                </span>
+                                <h6 class="mb-0 text-dark fw-semibold">{{ template.situation }}</h6>
+                            </div>
+                            <p class="mb-0 text-muted template-preview">
+                                {{ template.response|truncate(180) }}
                             </p>
                         </div>
-                        <div class="btn-group ms-3" role="group">
+
+                        <div class="btn-group" role="group">
                             <button class="btn btn-sm btn-outline-primary copy-btn"
                                     data-full-text="{{ template.response }}"
-                                    title="Копировать">
+                                    data-bs-toggle="tooltip" data-bs-placement="top" title="Копировать">
                                 <i class="bi bi-clipboard"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-secondary view-btn"
-                                    onclick="toggleTemplate('content-{{ template.id }}', this)"
-                                    title="Показать полностью">
-                                <i class="bi bi-arrows-angle-expand"></i>
-                            </button>
-                            {% if current_user.access_level >= 2 %}
+                            {% if current_user.access_level >= 4 %}
                             <a href="{{ url_for('edit_response_template', template_id=template.id) }}"
-                               class="btn btn-sm btn-outline-warning"
-                               title="Редактировать">
+                               class="btn btn-sm btn-outline-warning" style="margin-left: 0.25rem;"
+                               data-bs-toggle="tooltip" data-bs-placement="top" title="Редактировать">
                                 <i class="bi bi-pencil"></i>
                             </a>
                             <form method="POST"
                                   action="{{ url_for('delete_response_template', template_id=template.id) }}"
                                   class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
                                         class="btn btn-sm btn-outline-danger"
-                                        title="Удалить"
+                                        data-bs-toggle="tooltip" data-bs-placement="top" title="Удалить"
                                         onclick="return confirm('Удалить этот шаблон?')">
                                     <i class="bi bi-trash"></i>
                                 </button>
@@ -70,127 +85,244 @@
                             {% endif %}
                         </div>
                     </div>
-                    <div class="collapse mt-2" id="content-{{ template.id }}">
-                        <div class="card card-body bg-light">
-                            <pre class="mb-0">{{ template.response }}</pre>
+
+                    <div class="collapse mt-3" id="content-{{ template.id }}">
+                        <div class="card card-body bg-light border-0">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <small class="text-muted">Полный текст ответа:</small>
+                                <button class="btn btn-sm btn-outline-primary copy-btn"
+                                        data-full-text="{{ template.response }}"
+                                        data-bs-toggle="tooltip" title="Копировать">
+                                    <i class="bi bi-clipboard me-1"></i>Копировать
+                                </button>
+                            </div>
+                            <div class="response-content bg-white p-3 rounded border">
+                                <pre class="mb-0">{{ template.response }}</pre>
+                            </div>
                         </div>
                     </div>
                 </div>
                 {% endfor %}
             </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-inboxes display-4 text-muted mb-3"></i>
+                <h5 class="text-muted">Шаблонов ответов пока нет</h5>
+                <p class="text-muted mb-4">Добавьте первый шаблон для быстрых ответов на тикеты</p>
+                {% if current_user.access_level >= 4 %}
+                <a href="{{ url_for('add_response_template') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle me-2"></i>Добавить шаблон
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
 
 <script>
-function toggleTemplate(templateId, element) {
-    const target = document.getElementById(templateId);
-    const bsCollapse = new bootstrap.Collapse(target, { toggle: true });
+    function getTemplateWord(count) {
+        const lastDigit = count % 10;
+        const lastTwoDigits = count % 100;
 
-    const btn = element.closest('.list-group-item').querySelector('.view-btn');
-    if (btn && !element.classList.contains('view-btn')) {
-        const icon = btn.querySelector('i');
-        const isExpanded = target.classList.contains('show');
-        
-        if (isExpanded) {
-            icon.classList.remove('bi-arrows-angle-expand');
-            icon.classList.add('bi-arrows-angle-contract');
-            btn.classList.remove('btn-outline-secondary');
-            btn.classList.add('btn-primary');
-        } else {
-            icon.classList.remove('bi-arrows-angle-contract');
-            icon.classList.add('bi-arrows-angle-expand');
-            btn.classList.remove('btn-primary');
-            btn.classList.add('btn-outline-secondary');
+        if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
+            return 'шаблонов';
+        }
+        if (lastDigit === 1) {
+            return 'шаблон';
+        }
+        if (lastDigit >= 2 && lastDigit <= 4) {
+            return 'шаблона';
+        }
+        return 'шаблонов';
+    }
+
+    function toggleTemplate(templateId, element) {
+        const target = document.getElementById(templateId);
+        const bsCollapse = new bootstrap.Collapse(target, { toggle: true });
+
+        const btn = element.closest('.template-item').querySelector('.view-btn');
+        if (btn && !element.classList.contains('view-btn')) {
+            const icon = btn.querySelector('i');
+            const isExpanded = target.classList.contains('show');
+
+            if (isExpanded) {
+                icon.classList.remove('bi-arrows-angle-expand');
+                icon.classList.add('bi-arrows-angle-contract');
+                btn.setAttribute('title', 'Свернуть');
+                btn.classList.remove('btn-outline-secondary');
+                btn.classList.add('btn-primary');
+                if (!btn.classList.contains('btn-sm')) {
+                    btn.innerHTML = '<i class="bi bi-arrows-angle-contract me-1"></i>Свернуть';
+                }
+            } else {
+                icon.classList.remove('bi-arrows-angle-contract');
+                icon.classList.add('bi-arrows-angle-expand');
+                btn.setAttribute('title', 'Развернуть');
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-outline-secondary');
+                if (!btn.classList.contains('btn-sm')) {
+                    btn.innerHTML = '<i class="bi bi-arrows-angle-expand me-1"></i>Развернуть';
+                }
+            }
+
+            const tooltip = bootstrap.Tooltip.getInstance(btn);
+            if (tooltip) {
+                tooltip.setContent({ '.tooltip-inner': isExpanded ? 'Свернуть' : 'Развернуть' });
+            }
         }
     }
-}
 
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.copy-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            const templateText = this.getAttribute('data-full-text');
-            
-            navigator.clipboard.writeText(templateText).then(() => {
-                const icon = this.querySelector('i');
-                icon.classList.remove('bi-clipboard');
-                icon.classList.add('bi-check2');
-                
-                setTimeout(() => {
-                    icon.classList.remove('bi-check2');
-                    icon.classList.add('bi-clipboard');
-                }, 2000);
-            }).catch(err => {
-                console.error('Ошибка копирования:', err);
-                alert('Не удалось скопировать текст');
+    document.addEventListener('DOMContentLoaded', function() {
+        const templateCount = document.getElementById('templateCount');
+        const templateCounter = document.getElementById('templateCounter');
+        if (templateCount && templateCounter) {
+            const count = parseInt(templateCount.textContent);
+            templateCounter.innerHTML = `<i class="bi bi-collection me-1"></i>${count} ${getTemplateWord(count)}`;
+        }
+
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const templateText = this.getAttribute('data-full-text');
+
+                navigator.clipboard.writeText(templateText).then(() => {
+                    const originalHTML = this.innerHTML;
+                    this.innerHTML = '<i class="bi bi-check2"></i> Скопировано!';
+                    this.classList.add('btn-success');
+                    this.classList.remove('btn-outline-primary', 'btn-outline-secondary');
+
+                    setTimeout(() => {
+                        this.innerHTML = originalHTML;
+                        this.classList.remove('btn-success');
+                        if (this.classList.contains('btn-sm')) {
+                            this.classList.add('btn-outline-primary');
+                        } else {
+                            this.classList.add('btn-outline-secondary');
+                        }
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Ошибка копирования:', err);
+                    alert('Не удалось скопировать текст. Возможно, ваш браузер не поддерживает эту функцию.');
+                });
             });
         });
-    });
 
-    document.getElementById('searchTemplates').addEventListener('input', function() {
-        const searchText = this.value.toLowerCase();
-        document.querySelectorAll('.list-group-item').forEach(item => {
-            const situation = item.querySelector('h6').textContent.toLowerCase();
-            const responsePreview = item.querySelector('.template-preview').textContent.toLowerCase();
-            
-            if (situation.includes(searchText) || responsePreview.includes(searchText)) {
-                item.style.display = '';
-            } else {
-                item.style.display = 'none';
-            }
-        });
+        const searchInput = document.getElementById('searchTemplates');
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                const searchText = this.value.toLowerCase();
+                let visibleCount = 0;
+
+                document.querySelectorAll('.template-item').forEach(item => {
+                    const situation = item.querySelector('h6').textContent.toLowerCase();
+                    const responsePreview = item.querySelector('.template-preview').textContent.toLowerCase();
+
+                    if (situation.includes(searchText) || responsePreview.includes(searchText)) {
+                        item.style.display = '';
+                        visibleCount++;
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+
+                const counterBadge = document.getElementById('templateCounter');
+                if (counterBadge && visibleCount > 0) {
+                    counterBadge.innerHTML = `<i class="bi bi-collection me-1"></i>${visibleCount} ${getTemplateWord(visibleCount)} из {{ response_templates|length }}`;
+                } else if (counterBadge) {
+                    counterBadge.innerHTML = `<i class="bi bi-collection me-1"></i>0 шаблонов из {{ response_templates|length }}`;
+                }
+            });
+        }
     });
-});
 </script>
 
 <style>
-.section-icon {
-    font-size: 1.75rem;
-    color: #0d6efd;
-}
+    .icon-wrapper {
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 
-.list-group-item {
-    transition: background-color 0.2s;
-    padding: 1rem;
-}
+    .template-item {
+        transition: all 0.2s ease;
+        border-left: 4px solid transparent;
+    }
 
-.list-group-item:hover {
-    background-color: #f8f9fa;
-}
+    .template-item:hover {
+        background-color: #f8f9fa !important;
+        border-left-color: #0d6efd;
+    }
 
-.btn-group .btn {
-    padding: 0.25rem 0.5rem;
-}
+    .template-preview {
+        cursor: pointer;
+        line-height: 1.5;
+    }
 
-.template-preview {
-    cursor: pointer;
-}
+    .response-content pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        font-family: 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+        background-color: transparent;
+        border: none;
+        padding: 0;
+        margin: 0;
+    }
 
-pre {
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-size: 0.9rem;
-    background-color: transparent;
-    border: none;
-    padding: 0;
-    margin: 0;
-    font-family: inherit;
-}
+    .btn-group .btn {
+        border-radius: 6px !important;
+        margin-left: 0.25rem;
+    }
 
-.copy-btn:hover {
-    background-color: #0d6efd;
-    color: white !important;
-}
+    .copy-btn:hover {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: white !important;
+    }
 
-.view-btn:hover:not(.btn-primary) {
-    background-color: #6c757d;
-    color: white !important;
-}
+    .view-btn:hover:not(.btn-primary) {
+        background-color: #6c757d;
+        border-color: #6c757d;
+        color: white !important;
+    }
 
-.card-header {
-    background-color: #f8f9fa !important;
-    border-bottom: 1px solid rgba(0,0,0,.125);
-}
+    .badge.bg-primary-subtle {
+        background-color: rgba(13, 110, 253, 0.1) !important;
+    }
+
+    .input-group:focus-within {
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        border-radius: 6px;
+    }
+
+    @media (max-width: 768px) {
+        .d-flex.justify-content-between.align-items-start {
+            flex-direction: column;
+        }
+
+        .btn-group {
+            margin-top: 1rem;
+            align-self: flex-end;
+        }
+
+        .input-group {
+            width: 100% !important;
+            margin-top: 1rem;
+        }
+
+        .card-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
 </style>
 {% endblock %}

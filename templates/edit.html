@@ -1,34 +1,397 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
-    <h1 class="mb-4">
-        {% if guide %}Редактирование руководства{% else %}Создание нового руководства{% endif %}
-    </h1>
-    
-    <form method="POST">
-        <div class="mb-3">
-            <label for="title" class="form-label">Название</label>
-            <input type="text" class="form-control" id="title" name="title" 
-                   value="{{ guide.title if guide else '' }}" required>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Главная</a></li>
+                    <li class="breadcrumb-item active">{% if guide %}Редактирование{% else %}Создание{% endif %}</li>
+                </ol>
+            </nav>
+
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-gradient-primary text-white py-3">
+                    <h1 class="h4 mb-0">
+                        <i class="bi bi-pencil-square me-2"></i>
+                        {% if guide %}Редактирование руководства{% else %}Создание нового руководства{% endif %}
+                    </h1>
+                </div>
+                <div class="card-body p-4">
+                    <form method="POST" id="guideForm">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-4">
+                            <label for="title" class="form-label fw-semibold">Название руководства</label>
+                            <input type="text" class="form-control form-control-lg" id="title" name="title"
+                                   value="{{ guide.title if guide else '' }}" required
+                                   placeholder="Введите название руководства">
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="category" class="form-label fw-semibold">Категория</label>
+                            <input type="text" class="form-control" id="category" name="category"
+                                   value="{{ guide.category if guide else '' }}" required
+                                   placeholder="Введите категорию">
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label for="content" class="form-label fw-semibold">Содержание</label>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Панель форматирования">
+                                    <button type="button" class="btn btn-outline-secondary" data-format="bold" title="Жирный текст (Ctrl+B)">
+                                        <i class="bi bi-type-bold"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" data-format="italic" title="Курсив (Ctrl+I)">
+                                        <i class="bi bi-type-italic"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" data-format="strikethrough" title="Зачёркнутый (Ctrl+T)">
+                                        <i class="bi bi-type-strikethrough"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" data-format="heading" title="Заголовок (Ctrl+H)">
+                                        <i class="bi bi-type-h1"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" data-format="link" title="Ссылка (Ctrl+K)">
+                                        <i class="bi bi-link"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" data-format="list-ul" title="Маркированный список (Ctrl+U)">
+                                        <i class="bi bi-list-ul"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" data-format="list-ol" title="Нумерованный список (Ctrl+O)">
+                                        <i class="bi bi-list-ol"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" data-format="code" title="Блок кода (Ctrl+`)">
+                                        <i class="bi bi-code"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" data-format="quote" title="Цитата (Ctrl+Q)">
+                                        <i class="bi bi-chat-quote"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <textarea class="form-control" id="content" name="content" rows="15" required
+                                      placeholder="Напишите содержание руководства...">{{ guide.content if guide else '' }}</textarea>
+
+                            <div class="d-flex justify-content-between mt-2">
+                                <div class="form-text">
+                                    Поддерживается Markdown/HTML-разметка. Используйте панель инструментов или горячие клавиши
+                                </div>
+                                <div class="form-text">
+                                    <span id="charCount">0</span> символов
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="form-label fw-semibold">Предпросмотр</label>
+                                <button type="button" id="togglePreview" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-eye me-1"></i>Скрыть предпросмотр
+                                </button>
+                            </div>
+                            <div class="card" id="previewCard">
+                                <div class="card-body markdown-preview" id="markdownPreview">
+                                    {% if guide and guide.content %}
+                                        {{ guide.content|markdown }}
+                                    {% else %}
+                                        <p class="text-muted">Предпросмотр появится здесь по мере ввода текста...</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2 justify-content-end pt-3 border-top">
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-1"></i>Отмена
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                {% if guide %}<i class="bi bi-check-circle me-1"></i>Обновить{% else %}<i class="bi bi-plus-circle me-1"></i>Создать{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-        
-        <div class="mb-3">
-            <label for="category" class="form-label">Категория</label>
-            <input type="text" class="form-control" id="category" name="category" 
-                   value="{{ guide.category if guide else '' }}" required>
-        </div>
-        
-        <div class="mb-3">
-            <label for="content" class="form-label">Содержание</label>
-            <textarea class="form-control" id="content" name="content" rows="10" required>{{ guide.content if guide else '' }}</textarea>
-        </div>
-        
-        <button type="submit" class="btn btn-primary">
-            {% if guide %}Обновить{% else %}Создать{% endif %}
-        </button>
-        <a href="{{ url_for('dashboard') }}"
-           class="btn btn-secondary">Отмена</a>
-    </form>
+    </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const contentTextarea = document.getElementById('content');
+        const previewElement = document.getElementById('markdownPreview');
+        const togglePreviewBtn = document.getElementById('togglePreview');
+        const previewCard = document.getElementById('previewCard');
+        const charCountElement = document.getElementById('charCount');
+
+        if (contentTextarea && charCountElement) {
+            charCountElement.textContent = contentTextarea.value.length;
+            contentTextarea.addEventListener('input', function() {
+                charCountElement.textContent = this.value.length;
+            });
+        }
+
+    function updatePreview() {
+        if (contentTextarea && previewElement) {
+            const markdownText = contentTextarea.value;
+            if (markdownText.trim() === '') {
+                previewElement.innerHTML = '<p class="text-muted">Предпросмотр появится здесь по мере ввода текста...</p>';
+            } else {
+                previewElement.innerHTML = marked.parse(markdownText);
+
+                document.querySelectorAll('pre code').forEach((block) => {
+                    hljs.highlightBlock(block);
+                });
+            }
+        }
+    }
+
+        if (contentTextarea) {
+            contentTextarea.addEventListener('input', updatePreview);
+            updatePreview();
+        }
+
+        if (togglePreviewBtn && previewCard) {
+            togglePreviewBtn.addEventListener('click', function() {
+                if (previewCard.style.display === 'none') {
+                    previewCard.style.display = 'block';
+                    this.innerHTML = '<i class="bi bi-eye me-1"></i>Скрыть предпросмотр';
+                } else {
+                    previewCard.style.display = 'none';
+                    this.innerHTML = '<i class="bi bi-eye me-1"></i>Показать предпросмотр';
+                }
+            });
+        }
+
+        document.querySelectorAll('[data-format]').forEach(button => {
+            button.addEventListener('click', function() {
+                const formatType = this.getAttribute('data-format');
+                formatText(formatType);
+            });
+        });
+
+        function formatText(formatType) {
+            if (!contentTextarea) return;
+
+            const start = contentTextarea.selectionStart;
+            const end = contentTextarea.selectionEnd;
+            const selectedText = contentTextarea.value.substring(start, end);
+            let formattedText = '';
+
+            switch(formatType) {
+                case 'bold':
+                    formattedText = `**${selectedText}**`;
+                    break;
+                case 'italic':
+                    formattedText = `*${selectedText}*`;
+                    break;
+                case 'strikethrough':
+                    formattedText = `~~${selectedText}~~`;
+                    break;
+                case 'heading':
+                    formattedText = `# ${selectedText}`;
+                    break;
+                case 'link':
+                    formattedText = `[${selectedText}](https://)`;
+                    break;
+                case 'list-ul':
+                    formattedText = selectedText.split('\n').map(line => `- ${line}`).join('\n');
+                    break;
+                case 'list-ol':
+                    formattedText = selectedText.split('\n').map((line, index) => `${index + 1}. ${line}`).join('\n');
+                    break;
+                case 'code':
+                    formattedText = `\`\`\`\n${selectedText}\n\`\`\``;
+                    break;
+                case 'quote':
+                    formattedText = selectedText.split('\n').map(line => `> ${line}`).join('\n');
+                    break;
+            }
+
+            contentTextarea.value = contentTextarea.value.substring(0, start) +
+                                   formattedText +
+                                   contentTextarea.value.substring(end);
+
+            updatePreview();
+
+            contentTextarea.focus();
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && contentTextarea === document.activeElement) {
+                switch(e.key) {
+                    case 'b':
+                        e.preventDefault();
+                        formatText('bold');
+                        break;
+                    case 'i':
+                        e.preventDefault();
+                        formatText('italic');
+                        break;
+                    case 't':
+                        e.preventDefault();
+                        formatText('strikethrough');
+                        break;
+                    case 'h':
+                        e.preventDefault();
+                        formatText('heading');
+                        break;
+                    case 'k':
+                        e.preventDefault();
+                        formatText('link');
+                        break;
+                    case 'u':
+                        e.preventDefault();
+                        formatText('list-ul');
+                        break;
+                    case 'o':
+                        e.preventDefault();
+                        formatText('list-ol');
+                        break;
+                    case '`':
+                        e.preventDefault();
+                        formatText('code');
+                        break;
+                    case 'q':
+                        e.preventDefault();
+                        formatText('quote');
+                        break;
+                }
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                document.getElementById('guideForm').dispatchEvent(new Event('submit'));
+            }
+        });
+    });
+</script>
+
+<style>
+    .markdown-preview {
+        line-height: 1.6;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    .markdown-preview h1, .markdown-preview h2, .markdown-preview h3, .markdown-preview h4, .markdown-preview h5, .markdown-preview h6 {
+        margin-top: 1.5em;
+        margin-bottom: 0.5em;
+        font-weight: 600;
+        color: #2d3748;
+    }
+
+    .markdown-preview h1 { font-size: 1.8em; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3em; }
+    .markdown-preview h2 { font-size: 1.5em; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3em; }
+    .markdown-preview h3 { font-size: 1.25em; }
+    .markdown-preview h4 { font-size: 1.1em; }
+    .markdown-preview h5 { font-size: 1em; }
+    .markdown-preview h6 { font-size: 0.9em; color: #718096; }
+
+    .markdown-preview p {
+        margin-bottom: 1em;
+    }
+
+    .markdown-preview ul, .markdown-preview ol {
+        margin-bottom: 1em;
+        padding-left: 2em;
+    }
+
+    .markdown-preview ul {
+        list-style-type: disc;
+    }
+
+    .markdown-preview ol {
+        list-style-type: decimal;
+    }
+
+    .markdown-preview blockquote {
+        border-left: 4px solid #4299e1;
+        padding: 0.5em 1em;
+        margin: 1em 0;
+        background-color: #ebf8ff;
+        border-radius: 0 4px 4px 0;
+        color: #2b6cb0;
+    }
+
+    .markdown-preview code {
+        background-color: #edf2f7;
+        padding: 0.2em 0.4em;
+        border-radius: 3px;
+        font-family: 'Fira Code', monospace;
+        font-size: 0.9em;
+    }
+
+    .markdown-preview pre {
+        background-color: #2d3748;
+        padding: 1em;
+        border-radius: 4px;
+        overflow-x: auto;
+        margin: 1em 0;
+    }
+
+    .markdown-preview pre code {
+        background: none;
+        padding: 0;
+        color: #e2e8f0;
+    }
+
+    .markdown-preview table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1em 0;
+    }
+
+    .markdown-preview del {
+        text-decoration: line-through;
+        color: #718096;
+        background-color: #fff5f5;
+    }
+
+    .markdown-preview table th, .markdown-preview table td {
+        padding: 0.5em;
+        border: 1px solid #e2e8f0;
+    }
+
+    .markdown-preview table th {
+        background-color: #f7fafc;
+        font-weight: 600;
+    }
+
+    .markdown-preview a {
+        color: #4299e1;
+        text-decoration: none;
+    }
+
+    .markdown-preview a:hover {
+        text-decoration: underline;
+    }
+
+    .btn-group .btn {
+        border-radius: 4px;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .btn-group .btn:hover {
+        background-color: #0d6efd;
+        color: white;
+    }
+
+    @media (max-width: 768px) {
+        .btn-group {
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .btn-group .btn {
+            margin-bottom: 0.25rem;
+        }
+    }
+</style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
 {% endblock %}

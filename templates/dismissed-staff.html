@@ -42,145 +42,145 @@
                             <th class="text-center">Дата снятия</th>
                             <th>Причина</th>
                             <th class="text-center">ВКонтакте</th>
-                            {% if current_user.access_level >= 4 %}
+                            {% if current_user.access_level >= 6 %}
                             <th class="text-center pe-4">Действия</th>
                             {% endif %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for member in dismissed_members %}
-                            {% if member.access_level == 0 and member.dismissal_date is not none %}
-                            <tr data-member-id="{{ member.id }}" class="align-middle">
-                                <td class="ps-4">
-                                    <div class="d-flex align-items-center">
-                                        {% if member.avatar %}
-                                            <img src="{{ member.avatar }}" alt="Аватар"
-                                                 class="rounded-circle me-3 border border-secondary"
-                                                 width="48" height="48" style="object-fit: cover;">
-                                        {% else %}
-                                            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3"
-                                                 style="width: 48px; height: 48px;">
-                                                <i class="bi bi-person-fill text-light" style="font-size: 1.5rem;"></i>
-                                            </div>
-                                        {% endif %}
-                                        <div>
-                                            <div class="fw-semibold">
-                                                {% if member.vk_link %}
-                                                    <a href="{{ member.vk_link }}" target="_blank"
-                                                       class="text-decoration-none text-white">
-                                                        {{ member.full_name|default('Не указано', true) }}
-                                                    </a>
-                                                {% else %}
-                                                    {{ member.full_name|default('Не указано', true) }}
-                                                {% endif %}
-                                            </div>
-                                            <small class="text-muted">{{ member.nickname|default('Ник не указан', true) }}</small>
+                        <tr data-member-id="{{ member.user.id }}" class="align-middle">
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center">
+                                    {% if member.user.avatar %}
+                                        <img src="{{ member.user.avatar }}" alt="Аватар"
+                                             class="rounded-circle me-3 border border-secondary"
+                                             width="48" height="48" style="object-fit: cover;">
+                                    {% else %}
+                                        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3"
+                                             style="width: 48px; height: 48px;">
+                                            <i class="bi bi-person-fill text-light" style="font-size: 1.5rem;"></i>
                                         </div>
+                                    {% endif %}
+                                    <div>
+                                        <div class="fw-semibold">
+                                            {% if member.user.vk_link %}
+                                                <a href="{{ member.user.vk_link }}" target="_blank"
+                                                   class="text-decoration-none text-white">
+                                                    {{ member.user.full_name|default('Не указано', true) }}
+                                                </a>
+                                            {% else %}
+                                                {{ member.user.full_name|default('Не указано', true) }}
+                                            {% endif %}
+                                        </div>
+                                        <small class="text-muted">{{ member.user.nickname|default('Ник не указан', true) }}</small>
                                     </div>
-                                </td>
-                                <td>
-                                    {% if member.previous_access_level == 6 %}
-                                    <span class="badge bg-purple text-white px-3 py-2">
-                                        <i class="bi me-1"></i>Куратор
-                                    </span>
-                                    {% elif member.previous_access_level == 5 %}
-                                    <span class="badge bg-pink text-white px-3 py-2">
-                                        <i class="bi me-1"></i>Зам.Куратора
-                                    </span>
-                                    {% elif member.previous_access_level == 4 %}
-                                    <span class="badge bg-success text-dark px-3 py-2">
-                                        <i class="bi me-1"></i>Гл.Модератор
-                                    </span>
-                                    {% elif member.previous_access_level == 3 %}
-                                    <span class="badge bg-danger text-white px-3 py-2">
-                                        <i class="bi me-1"></i>Ст.Модератор
-                                    </span>
-                                    {% elif member.previous_access_level == 2 %}
-                                    <span class="badge bg-info text-dark px-3 py-2">
-                                        <i class="bi me-1"></i>Модератор
-                                    </span>
-                                    {% elif member.previous_access_level == 1 %}
-                                    <span class="badge bg-cyan text-white px-3 py-2">
-                                        <i class="bi me-1"></i>Мл.Модератор
-                                    </span>
-                                    {% else %}
+                                </div>
+                            </td>
+
+                            <td>
+                                {% if member.previous_access_level == 8 %}
+                                    <span class="badge bg-purple text-white px-3 py-2">Куратор</span>
+                                {% elif member.previous_access_level == 7 %}
+                                    <span class="badge bg-pink text-white px-3 py-2">Зам.Куратора</span>
+                                {% elif member.previous_access_level == 6 %}
+                                    <span class="badge bg-success text-dark px-3 py-2">Гл.Модератор</span>
+                                {% elif member.previous_access_level == 5 %}
+                                    <span class="badge bg-danger text-white px-3 py-2">Ст.Модератор</span>
+                                {% elif member.previous_access_level == 4 %}
+                                    <span class="badge bg-warning text-dark px-3 py-2">Следящий за хелперами</span>
+                                {% elif member.previous_access_level == 3 %}
+                                    <span class="badge bg-info text-dark px-3 py-2">Модератор</span>
+                                {% elif member.previous_access_level == 2 %}
+                                    <span class="badge bg-cyan text-white px-3 py-2">Мл.Модератор</span>
+                                {% elif member.previous_access_level == 1 %}
+                                    <span class="badge text-dark px-3 py-2 text-dark" style="background-color: gold">Хелпер</span>
+                                {% else %}
                                     <span class="badge bg-secondary px-3 py-2">Неизвестно</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <i class="bi bi-discord me-2 text-primary"></i>
-                                        <span class="font-monospace">{{ member.username|default('Не указан', true) }}</span>
-                                    </div>
-                                </td>
-                                <td class="text-center">
-                                    {% set warnings = member.warnings.split('/') if member.warnings else ['0', '0'] %}
-                                    <div class="d-flex flex-column gap-1">
-                                        <span class="badge bg-danger">
-                                            <i class="bi me-1"></i>
-                                            Выговоры {{ warnings[0] }}/2
-                                        </span>
-                                        <span class="badge bg-warning text-dark">
-                                            <i class="bi me-1"></i>
-                                            Предупреждения {{ warnings[1] }}/3
-                                        </span>
-                                    </div>
-                                </td>
-                                <td class="text-center">
-                                    <span class="badge bg-secondary px-3 py-2">
-                                        <i class="bi bi-calendar-x me-1"></i>
-                                        {{ member.dismissal_date.strftime('%d.%m.%Y') if member.dismissal_date else '-' }}
-                                    </span>
-                                </td>
-                                <td>
-                                    {% if member.dismissal_reason %}
-                                        <span class="badge bg-info text-dark cursor-pointer"
-                                              data-bs-toggle="tooltip"
-                                              title="{{ member.dismissal_reason }}"
-                                              style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                                            <i class="bi bi-chat-dots me-1"></i>
-                                            {{ member.dismissal_reason|truncate(25) }}
-                                        </span>
-                                    {% else %}
-                                        <span class="text-muted small">
-                                            <i class="bi bi-dash-circle me-1"></i>Не указана
-                                        </span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-center">
-                                    {% if member.vk_link %}
-                                    <a href="{{ member.vk_link }}" target="_blank"
-                                       class="btn btn-sm btn-outline-primary"
-                                       data-bs-toggle="tooltip" title="Перейти в ВК">
-                                        <i class="bi bi-link-45deg"></i>
-                                    </a>
-                                    {% else %}
-                                    <span class="text-muted">—</span>
-                                    {% endif %}
-                                </td>
-                                {% if current_user.access_level >= 4 %}
-                                <td class="text-center pe-4">
-                                    <div class="btn-group">
-                                        <button class="btn btn-sm btn-outline-info"
-                                                onclick="viewMemberDetails('{{ member.id }}')"
-                                                data-bs-toggle="tooltip" title="Подробная информация">
-                                            <i class="bi bi-info-circle"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-warning"
-                                                onclick="editDismissedMember('{{ member.id }}')"
-                                                data-bs-toggle="tooltip" title="Редактировать">
-                                            <i class="bi bi-gear"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-success"
-                                                onclick="rehireMember('{{ member.id }}')"
-                                                data-bs-toggle="tooltip" title="Принять на должность">
-                                            <i class="bi bi-person-plus"></i>
-                                        </button>
-                                    </div>
-                                </td>
                                 {% endif %}
-                            </tr>
+                            </td>
+
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <i class="bi bi-discord me-2 text-primary"></i>
+                                    <span>{{ member.user.username|default('Не указан', true) }}</span>
+                                </div>
+                            </td>
+
+                            <td class="text-center">
+                                {% set warnings = member.user.warnings.split('/') if member.user.warnings else ['0', '0'] %}
+                                <div class="d-flex flex-column gap-1">
+                                    <span class="badge bg-danger">
+                                        Выговоры {{ warnings[0] }}/2
+                                    </span>
+                                    <span class="badge bg-warning text-dark">
+                                        Предупреждения {{ warnings[1] }}/3
+                                    </span>
+                                </div>
+                            </td>
+
+                            <td class="text-center">
+                                <span class="badge bg-secondary px-3 py-2">
+                                    <i class="bi bi-calendar-x me-1"></i>
+                                    {{ member.date.strftime('%d.%m.%Y') if member.date else '-' }}
+                                </span>
+                            </td>
+
+                            <td>
+                                {% if member.reason %}
+                                    <span class="badge bg-info text-dark cursor-pointer"
+                                          data-bs-toggle="tooltip"
+                                          title="{{ member.reason }}"
+                                          style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        <i class="bi bi-chat-dots me-1"></i>
+                                        {{ member.reason|truncate(25) }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted small">
+                                        <i class="bi bi-dash-circle me-1"></i>Не указана
+                                    </span>
+                                {% endif %}
+                            </td>
+
+                            <td class="text-center">
+                                {% if member.user.vk_link %}
+                                <a href="{{ member.user.vk_link }}" target="_blank"
+                                   class="btn btn-sm btn-outline-primary"
+                                   data-bs-toggle="tooltip" title="Перейти в ВК">
+                                    <i class="bi bi-link-45deg"></i>
+                                </a>
+                                {% else %}
+                                <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+
+                            {% if current_user.access_level >= 6 %}
+                            <td class="text-center pe-4">
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-info" style="margin-right: 0.25rem"
+                                            onclick="viewMemberDetails('{{ member.user.id }}')"
+                                            data-bs-toggle="tooltip" title="Подробная информация">
+                                        <i class="bi bi-info-circle"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning" style="margin-right: 0.25rem"
+                                            onclick="editDismissedMember('{{ member.id }}')"
+                                            data-bs-toggle="tooltip" title="Редактировать">
+                                        <i class="bi bi-gear"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-success" style="margin-right: 0.25rem"
+                                            onclick="rehireMember('{{ member.user.id }}')"
+                                            data-bs-toggle="tooltip" title="Принять на должность">
+                                        <i class="bi bi-person-plus"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            onclick="deleteDismissal('{{ member.id }}', '{{ member.user.full_name or member.user.username }}')"
+                                            data-bs-toggle="tooltip" title="Удалить запись">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
                             {% endif %}
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -192,11 +192,42 @@
                     <i class="bi bi-info-circle me-1"></i>
                     Всего записей: {{ dismissed_members|length }}
                 </div>
-                {% if current_user.access_level >= 4 %}
+                {% if current_user.access_level >= 6 %}
                 <button class="btn btn-outline-warning" onclick="clearDismissedList()">
                     <i class="bi bi-trash3 me-1"></i> Очистить список
                 </button>
                 {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-white">
+                <div class="modal-header border-danger">
+                    <h5 class="modal-title text-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Подтверждение удаления
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-octagon-fill me-2"></i>
+                        <strong>Внимание!</strong> Это действие невозможно отменить.
+                    </div>
+                    <p>Вы уверены, что хотите удалить запись о снятии сотрудника?</p>
+                    <p class="fw-bold" id="deleteMemberName"></p>
+                    <p class="text-muted">Эта запись будет полностью удалена из системы.</p>
+                </div>
+                <div class="modal-footer border-danger">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-x-circle me-1"></i> Отмена
+                    </button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                        <i class="bi bi-trash3 me-1"></i> Удалить
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -227,6 +258,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form id="editDismissedForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="member_id" id="editDismissedMemberId">
                     <div class="modal-body">
                         <div class="row">
@@ -313,7 +345,6 @@
         </div>
     </div>
 
-    <!-- Модальное окно принятия на должность -->
     <div class="modal fade" id="rehireModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content bg-dark text-white">
@@ -325,6 +356,7 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form id="rehireForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="member_id" id="rehireMemberId">
                     <div class="modal-body">
                         <div class="mb-3">
@@ -410,6 +442,10 @@
                             <label class="form-label fw-bold text-primary">ВКонтакте:</label>
                             <p id="detailVkLink" class="form-control-plaintext">—</p>
                         </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold text-primary">Email:</label>
+                            <p id="detailEmail" class="form-control-plaintext text-white">—</p>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">
@@ -452,6 +488,25 @@
     </div>
 
     <style>
+        .btn-group .btn {
+            margin-right: 0.25rem;
+        }
+
+        .btn-group .btn:last-child {
+            margin-right: 0;
+        }
+
+        .btn-outline-danger {
+            border-color: #dc3545;
+            color: #dc3545;
+        }
+
+        .btn-outline-danger:hover {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            color: white;
+        }
+
         .bg-purple {
             background: linear-gradient(45deg, #6f42c1, #9e6bff);
         }
@@ -475,32 +530,117 @@
         .cursor-pointer {
             cursor: pointer;
         }
-
-        .font-monospace {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-        }
-
-        .table-success {
-            background-color: rgba(25, 135, 84, 0.1) !important;
-        }
-
-        .table-success:hover {
-            background-color: rgba(25, 135, 84, 0.2) !important;
-        }
     </style>
 
     <script>
-        function editDismissedMember(memberId) {
-            fetch(`/get-staff-member?id=${memberId}`)
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+        const token = localStorage.getItem("jwt");
+        let currentDismissalId = null;
+        let currentMemberName = null;
+
+        function deleteDismissal(dismissalId, memberName) {
+            currentDismissalId = dismissalId;
+            currentMemberName = memberName;
+
+            document.getElementById('deleteMemberName').textContent = memberName;
+
+            const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+            modal.show();
+        }
+
+        function confirmDeleteDismissal() {
+            if (!currentDismissalId) return;
+
+            fetch(`/delete-dismissal/${currentDismissalId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'X-CSRFToken': csrfToken,
+                },
+                credentials: "include"
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('success', 'Запись успешно удалена');
+
+                    const row = document.querySelector(`tr[data-member-id="${currentDismissalId}"]`);
+                    if (row) {
+                        row.remove();
+                    }
+
+                    bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal')).hide();
+
+                    updateRecordsCount();
+
+                    setTimeout(() => {
+                        location.reload();
+                    })
+                } else {
+                    showToast('error', 'Ошибка: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                showToast('error', 'Ошибка при удалении: ' + error.message);
+            });
+        }
+
+        function updateRecordsCount() {
+            const rows = document.querySelectorAll('tbody tr');
+            const countElement = document.querySelector('.text-muted i.bi-info-circle').parentElement;
+            if (countElement) {
+                countElement.innerHTML = `<i class="bi bi-info-circle me-1"></i>Всего записей: ${rows.length}`;
+            }
+        }
+
+        document.getElementById('confirmDeleteBtn').addEventListener('click', confirmDeleteDismissal);
+    </script>
+
+    <script>
+        const token = localStorage.getItem("jwt");
+        function editDismissedMember(dismissalId) {
+            fetch(`/get-dismissed-member-details?id=${dismissalId}`)
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('editDismissedMemberId').value = data.id;
                     document.getElementById('editPosition').value = data.previous_access_level || '1';
                     document.getElementById('editDismissalReason').value = data.dismissal_reason || '';
-                    document.getElementById('editJoinDate').value = data.join_date || '';
-                    document.getElementById('editDismissalDate').value = data.dismissal_date || '';
+                    document.getElementById('editDismissalNotes').value = data.dismissal_notes || '';
+
+                    if (data.join_date) {
+                        document.getElementById('editJoinDate').value = data.join_date;
+                    }
+                    if (data.dismissal_date) {
+                        document.getElementById('editDismissalDate').value = data.dismissal_date;
+                    }
                     document.getElementById('editVkLink').value = data.vk_link || '';
-                    document.getElementById('editDiscordId').value = data.id || '';
+                    document.getElementById('editEmail').value = data.email || '';
+                    document.getElementById('editDiscordId').value = data.discord_id || '';
+
+                    const container = document.getElementById('warningsHistory');
+                    container.innerHTML = '';
+
+                    if (data.warnings_history && data.warnings_history.length > 0) {
+                        data.warnings_history.forEach(entry => {
+                            const div = document.createElement('div');
+                            div.className = 'warning-entry mb-2';
+                            div.innerHTML = `
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <input type="date" class="form-control" name="warning_dates[]" value="${entry.date || ''}">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <input type="text" class="form-control" name="warning_reasons[]" value="${entry.reason || ''}">
+                                    </div>
+                                </div>
+                            `;
+                            container.appendChild(div);
+                        });
+                    } else {
+                        addWarningField();
+                    }
 
                     const modal = new bootstrap.Modal(document.getElementById('editDismissedModal'));
                     modal.show();
@@ -544,9 +684,11 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-API-KEY': '123'
+                    'Authorization': `Bearer ${token}`,
+                    'X-CSRFToken': csrfToken,
                 },
-                body: JSON.stringify(Object.fromEntries(formData))
+                body: JSON.stringify(Object.fromEntries(formData)),
+                credentials: "include"
             })
             .then(response => response.json())
             .then(data => {
@@ -571,9 +713,11 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-API-KEY': '123'
+                    'Authorization': `Bearer ${token}`,
+                    'X-CSRFToken': csrfToken,
                 },
-                body: JSON.stringify(Object.fromEntries(formData))
+                body: JSON.stringify(Object.fromEntries(formData)),
+                credentials: "include"
             })
             .then(response => response.json())
             .then(data => {
@@ -589,12 +733,14 @@
                         const positionCell = memberRow.querySelector('td:nth-child(2)');
                         if (positionCell) {
                             const positionNames = {
-                                6: "Куратор дискорда",
-                                5: "Зам.Куратора дискорда",
-                                4: "Гл.Модератор дискорда",
-                                3: "Ст.Модератор дискорда",
-                                2: "Модератор дискорда",
-                                1: "Мл.Модератор дискорда"
+                                8: "Куратор дискорда",
+                                7: "Зам.Куратора дискорда",
+                                6: "Гл.Модератор дискорда",
+                                5: "Ст.Модератор дискорда",
+                                4: "Следящий за хелперами",
+                                3: "Модератор дискорда",
+                                2: "Мл.Модератор дискорда",
+                                1: "Хелпер дискорда"
                             };
                             positionCell.innerHTML = `<span class="badge bg-success">${positionNames[accessLevel] || 'Неизвестно'}</span>`;
                         }
@@ -610,12 +756,14 @@
         });
 
         function viewMemberDetails(memberId) {
-            fetch(`/get-staff-member?id=${memberId}`)
+            fetch(`/get-dismissed-staff-member?id=${memberId}`)
                 .then(response => {
                     if (!response.ok) throw new Error('Ошибка сети');
                     return response.json();
                 })
                 .then(data => {
+                    console.log('Полученные данные:', data);
+
                     document.getElementById('detailFullName').textContent = data.full_name || 'Не указано';
                     document.getElementById('detailNickname').textContent = data.nickname || 'Не указан';
                     document.getElementById('detailUsername').textContent = data.username || 'Не указан';
@@ -623,6 +771,7 @@
                     document.getElementById('detailJoinDate').textContent = data.join_date || 'Не указана';
                     document.getElementById('detailDismissalDate').textContent = data.dismissal_date || 'Не указана';
                     document.getElementById('detailDismissalReason').textContent = data.dismissal_reason || 'Не указана';
+                    document.getElementById('detailEmail').textContent = data.email || 'Не указана';
 
                     if (data.vk_link) {
                         document.getElementById('detailVkLink').innerHTML =
@@ -635,6 +784,7 @@
                     }
 
                     const positionNames = {
+                        7: "Администратор",
                         6: "Куратор дискорда",
                         5: "Зам.Куратора дискорда",
                         4: "Гл.Модератор дискорда",
@@ -655,8 +805,30 @@
         }
 
         function clearDismissedList() {
-            const modal = new bootstrap.Modal(document.getElementById('clearModal'));
-            modal.show();
+            if (confirm('Вы уверены, что хотите очистить список снятых сотрудников? Это действие нельзя отменить.')) {
+                fetch('/clear-dismissed-list', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                        'X-CSRFToken': csrfToken,
+                    },
+                    credentials: "include"
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Список очищен. Обработано записей: ${data.cleared_count}`);
+                        location.reload();
+                    } else {
+                        alert('Ошибка: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    alert('Ошибка при очистке: ' + error.message);
+                });
+            }
         }
 
         function confirmClearDismissed() {
@@ -664,8 +836,10 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-API-KEY': '123'
-                }
+                    'Authorization': `Bearer ${token}`,
+                    'X-CSRFToken': csrfToken,
+                },
+                credentials: "include"
             })
             .then(response => response.json())
             .then(data => {

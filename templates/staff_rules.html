@@ -16,12 +16,15 @@
                 {% if current_user.is_authenticated %}
                 Ваша должность:
                 <span class="badge bg-primary">
-                    {% if current_user.access_level == 6 %}Куратор дискорда
-                    {% elif current_user.access_level == 5 %}Зам.Куратора дискорда
-                    {% elif current_user.access_level == 4 %}Гл.Модератор дискорда
-                    {% elif current_user.access_level == 3 %}Ст.Модератор дискорда
-                    {% elif current_user.access_level == 2 %}Модератор дискорда
-                    {% elif current_user.access_level == 1 %}Мл.Модератор дискорда
+                    {% if current_user.access_level == 9 %}Администратор
+                    {% elif current_user.access_level == 8 %}Куратор дискорда
+                    {% elif current_user.access_level == 7 %}Зам.Куратора дискорда
+                    {% elif current_user.access_level == 6 %}Гл.Модератор дискорда
+                    {% elif current_user.access_level == 5 %}Ст.Модератор дискорда
+                    {% elif current_user.access_level == 4 %}Следящий за хелперами
+                    {% elif current_user.access_level == 3 %}Модератор дискорда
+                    {% elif current_user.access_level == 2 %}Мл.Модератор дискорда
+                    {% elif current_user.access_level == 1 %}Хелпер дискорда
                     {% endif %}
                 </span>
                 {% endif %}
@@ -54,9 +57,9 @@
                                 <h5>Права:</h5>
                                 <ul>
                                     {% for item in role.permissions.split('\n') %}
-                                    {% if item.strip() %}
-                                    <li>{{ item }}</li>
-                                    {% endif %}
+                                        {% if item.strip() %}
+                                            <li>{{ item }}</li>
+                                        {% endif %}
                                     {% endfor %}
                                 </ul>
                             </div>

@@ -1,176 +1,246 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
+<div class="container mt-4">
     <div id="userAuthData"
          data-access-level="{{ current_user.access_level if current_user.is_authenticated else 0 }}"
          style="display: none;"></div>
 
-    <h2 class="my-4">Персонал дискорда HolyWorld</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h2 fw-bold text-gradient-primary">👥 Персонал Discord HolyWorld</h2>
+        <span class="badge bg-primary rounded-pill">{{ staff_members|selectattr('access_level', 'gt', 0)|list|length }} сотрудников</span>
+    </div>
 
-    <div class="table-responsive">
-        <table class="table table-dark table-hover">
-            <thead>
-                <tr>
-                    <th>Имя Фамилия</th>
-                    <th>Ник</th>
-                    <th>Должность</th>
-                    <th>Discord</th>
-                    <th>Зарплата</th>
-                    <th>Выговоры</th>
-                    <th>Отпуск</th>
-                    <th>Поступил</th>
-                    <th>ВКонтакте</th>
-                    {% if current_user.access_level >= 4 %}<th></th>{% endif %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for member in staff_members %}
-                {% if member.access_level > 0 and member.dismissal_date is none %}
-                <tr data-member-id="{{ member.id }}">
-                    <td>
-                        <div class="d-flex align-items-center">
-                            {% if member.avatar %}
-                                <img src="{{ member.avatar }}" alt="Аватар" class="rounded-circle me-2" width="40"
-                                     height="40">
-                            {% else %}
-                                <i class="bi bi-person-circle me-2" style="font-size: 1.5rem;"></i>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-transparent border-0 py-3">
+            <h5 class="mb-0 fw-semibold text-primary">
+                <i class="bi bi-people-fill me-2"></i>Список сотрудников
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Сотрудник</th>
+                            <th>Должность</th>
+                            <th>Дискорд</th>
+                            <th class="text-center">Баланс</th>
+                            <th class="text-center">Выговоры</th>
+                            <th class="text-center">Отпуск</th>
+                            <th class="text-center">Принят</th>
+                            <th class="text-center">ВКонтакте</th>
+                            {% if current_user.access_level >= 6 %}
+                            <th class="text-center pe-4"></th>
                             {% endif %}
-                            {% if member.vk_link %}
-                                <a href="{{ member.vk_link }}" target="_blank" class="text-decoration-none">
-                                    {{ member.full_name|default('-', true) }}
-                                </a>
-                            {% else %}
-                                {{ member.full_name|default('Не указано', true) }}
-                            {% endif %}
-                        </div>
-                    </td>
-                    <td>
-                        {{ member.nickname|default('Не указан', true) }}
-                    </td>
-                    <td>
-                        {% if member.access_level == 7 %}
-                        <span class="badge bg-danger">Администратор</span>
-                        {% elif member.access_level == 6 %}
-                        <span class="badge" style="background-color: #9e6bff; color: white">Куратор дискорда</span>
-                        {% elif member.access_level == 5 %}
-                        <span class="badge" style="background-color: #965f7f; color: white">Зам.Куратора дискорда</span>
-                        {% elif member.access_level == 4 %}
-                        <span class="badge" style="background-color: #00ff22; color: darkblue">Гл.Модератор дискорда</span>
-                        {% elif member.access_level == 3 %}
-                        <span class="badge" style="background-color: #ff0000; color: white">Ст.Модератор дискорда</span>
-                        {% elif member.access_level == 2 %}
-                        <span class="badge" style="background-color: #78f4db; color: black">Модератор дискорда</span>
-                        {% elif member.access_level == 1 %}
-                        <span class="badge" style="background-color: #40e0d0; color: white">Мл.Модератор дискорда</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {{ member.username|default('Не указан', true) }}
-                    </td>
-                    <td>
-                        {{ member.salary|default(0, true) }}
-                    </td>
-                    <td class="text-center warnings-cell">
-                        {% set warnings = member.warnings.split('/') if member.warnings else ['0', '0'] %}
-                        <div class="d-flex gap-1 align-items-center">
-                            <span class="badge bg-{{ 'danger' if warnings[0]|int > 0 else 'secondary' }}">Выговор: {{ warnings[0] }}/2</span>
-                            {% if current_user.access_level >= 4 %}
-                                {% if warnings[0]|int > 0 %}
-                                    <button class="btn btn-sm btn-outline-danger" onclick="updateWarnings('{{ member.id }}', 'warn', -1)">-</button>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for member in staff_members %}
+                            {% if member.access_level > 0 %}
+                            <tr class="staff-row" data-member-id="{{ member.id }}">
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="position-relative me-3">
+                                            {% if member.avatar %}
+                                                <img src="{{ member.avatar }}" alt="Аватар" class="rounded-circle" width="48" height="48">
+                                            {% else %}
+                                                <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                                    <i class="bi bi-person-fill text-white"></i>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <div class="fw-semibold">
+                                                {% if member.vk_link %}
+                                                    <a href="{{ member.vk_link }}" target="_blank" class="text-decoration-none text-dark">
+                                                        {{ member.full_name|default(member.username, true) }}
+                                                    </a>
+                                                {% else %}
+                                                    Имя не указано
+                                                {% endif %}
+                                            </div>
+                                            <small class="text-muted">
+                                                {{ member.nickname|default('Ник не указан', true) }}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% if member.access_level == 9 %}
+                                        <span class="badge bg-danger rounded-pill">Администратор</span>
+                                    {% elif member.access_level == 8 %}
+                                        <span class="badge bg-purple rounded-pill">Куратор</span>
+                                    {% elif member.access_level == 7 %}
+                                        <span class="badge bg-pink rounded-pill">Зам.Куратора</span>
+                                    {% elif member.access_level == 6 %}
+                                        <span class="badge bg-success rounded-pill">Гл.Модератор</span>
+                                    {% elif member.access_level == 5 %}
+                                        <span class="badge bg-warning rounded-pill text-dark">Ст.Модератор</span>
+                                    {% elif member.access_level == 4 %}
+                                        <span class="badge rounded-pill text-dark" style="background-color: #ffc107">Следящий за хелперами</span>
+                                    {% elif member.access_level == 3 %}
+                                        <span class="badge bg-info rounded-pill">Модератор</span>
+                                    {% elif member.access_level == 2 %}
+                                        <span class="badge bg-cyan rounded-pill">Мл.Модератор</span>
+                                    {% elif member.access_level == 1 %}
+                                        <span class="badge bg-orange rounded-pill">Хелпер</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="bi me-2 text-primary"></i>
+                                        <span>{{ member.username|default('Не указан', true) }}</span>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <span class="fw-bold text-success">{{ member.salary|default('0', true) }}</span>
+                                </td>
+                                <td class="text-center">
+                                    {% set warnings = member.warnings.split('/') if member.warnings else ['0', '0'] %}
+                                    <div class="d-flex flex-column gap-1">
+                                        <div class="d-flex align-items-center justify-content-center gap-1">
+                                            <span class="badge bg-{{ 'danger' if warnings[0]|int > 0 else 'secondary' }} rounded-pill">
+                                                Выговор {{ warnings[0] }}/2
+                                            </span>
+                                            {% if current_user.access_level >= 6 and current_user.access_level > member.access_level %}
+                                                <div class="btn-group btn-group-sm">
+                                                    {% if warnings[0]|int > 0 %}
+                                                    <button class="btn btn-outline-danger px-2" onclick="updateWarnings('{{ member.id }}', 'warn', -1)">
+                                                        <i class="bi bi-dash"></i>
+                                                    </button>
+                                                    {% endif %}
+                                                    <button class="btn btn-outline-success px-2" onclick="updateWarnings('{{ member.id }}', 'warn', 1)">
+                                                        <i class="bi bi-plus"></i>
+                                                    </button>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                        <div class="d-flex align-items-center justify-content-center gap-1">
+                                            <span class="badge bg-{{ 'warning' if warnings[1]|int > 0 else 'secondary' }} rounded-pill text-dark">
+                                                Предупреждение {{ warnings[1] }}/3
+                                            </span>
+                                            {% if current_user.access_level >= 6 and current_user.access_level > member.access_level %}
+                                                <div class="btn-group btn-group-sm">
+                                                    {% if warnings[1]|int > 0 %}
+                                                    <button class="btn btn-outline-danger px-2" onclick="updateWarnings('{{ member.id }}', 'pred', -1)">
+                                                        <i class="bi bi-dash"></i>
+                                                    </button>
+                                                    {% endif %}
+                                                    <button class="btn btn-outline-success px-2" onclick="updateWarnings('{{ member.id }}', 'pred', 1)">
+                                                        <i class="bi bi-plus"></i>
+                                                    </button>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    {% if member.vacation_date %}
+                                        <span class="badge bg-info rounded-pill">
+                                            🏖️ {{ member.vacation_date.strftime('%d.%m.%Y') }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if member.join_date %}
+                                        <span class="badge bg-light text-dark rounded-pill">
+                                            📅 {{ member.join_date.strftime('%d.%m.%Y') }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if member.vk_link %}
+                                        <a href="{{ member.vk_link }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill">
+                                            <i class="bi bi-link-45deg"></i> VK
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                {% if current_user.access_level >= 6 %}
+                                <td class="text-center pe-4">
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-outline-primary rounded-pill me-1"
+                                                onclick="loadMemberData('{{ member.id }}')"
+                                                title="Редактировать">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        {% if current_user.access_level > member.access_level %}
+                                        <button class="btn btn-sm btn-outline-danger rounded-pill"
+                                                onclick="quickDismiss('{{ member.id }}')"
+                                                title="Снять с должности">
+                                            <i class="bi bi-person-x"></i>
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </td>
                                 {% endif %}
-                                <button class="btn btn-sm btn-outline-success" onclick="updateWarnings('{{ member.id }}', 'warn', 1)">+</button>
+                            </tr>
                             {% endif %}
-                        </div>
-                        <div class="d-flex gap-1 align-items-center mt-1">
-                            <span class="badge bg-{{ 'warning' if warnings[1]|int > 0 else 'secondary' }}">Предупреждение: {{ warnings[1] }}/3</span>
-                            {% if current_user.access_level >= 4 %}
-                                {% if warnings[1]|int > 0 %}
-                                    <button class="btn btn-sm btn-outline-danger" onclick="updateWarnings('{{ member.id }}', 'pred', -1)">-</button>
-                                {% endif %}
-                                <button class="btn btn-sm btn-outline-success" onclick="updateWarnings('{{ member.id }}', 'pred', 1)">+</button>
-                            {% endif %}
-                        </div>
-                    </td>
-                    <td class="text-center">
-                        {{ member.vacation_date.strftime('%d.%m.%Y') if member.vacation_date else '-' }}
-                    </td>
-                    <td class="text-center">
-                        {{ member.join_date.strftime('%d.%m.%Y') if member.join_date else '-' }}
-                    </td>
-                    <td class="text-center">
-                        {% if member.vk_link %}
-                        <a href="{{ member.vk_link }}" target="_blank" class="text-decoration-none">
-                            <i class="bi bi-link-45deg"></i> Профиль
-                        </a>
-                        {% else %}
-                        -
-                        {% endif %}
-                    </td>
-                    {% if current_user.access_level >= 4 %}
-                    <td>
-                        <div class="btn-group">
-                            <button class="btn btn-sm btn-outline-primary" onclick="loadMemberData('{{ member.id }}')">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="quickDismiss('{{ member.id }}')">
-                                <i class="bi bi-person-x"></i>
-                            </button>
-                        </div>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endif %}
-                {% endfor %}
-            </tbody>
-        </table>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content bg-dark text-white">
-                <div class="modal-header">
-                    <h5 class="modal-title">Редактирование сотрудника</h5>
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title fw-semibold">
+                        <i class="bi bi-person-gear me-2"></i>Редактирование сотрудника
+                    </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form id="editForm" method="POST" action="{{ url_for('update_staff_member') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="member_id" id="memberId">
                     <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Имя Фамилия</label>
-                                <label for="fullName"></label><input type="text" class="form-control" name="full_name" id="fullName">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Имя Фамилия</label>
+                                <label for="fullName"></label><input type="text" class="form-control form-control-lg" name="full_name" id="fullName" placeholder="Введите ФИО">
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Ник</label>
-                                <label for="nickname"></label><input type="text" class="form-control" name="nickname" id="nickname">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Никнейм</label>
+                                <label for="nickname"></label><input type="text" class="form-control form-control-lg" name="nickname" id="nickname" placeholder="Введите ник">
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Зарплата</label>
-                                <label for="salary"></label><input type="text" class="form-control" name="salary" id="salary">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Баланс</label>
+                                <label for="salary"></label><input type="text" class="form-control form-control-lg" name="salary" id="salary" placeholder="0">
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Выговор/Предупреждение</label>
-                                <label for="warnings"></label><input type="text" class="form-control" name="warnings" id="warnings" placeholder="0/0">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Выговоры/Предупреждения</label>
+                                <label for="warnings"></label><input type="text" class="form-control form-control-lg" name="warnings" id="warnings" placeholder="0/0">
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Дата отпуска</label>
-                                <label for="vacationDate"></label><input type="date" class="form-control" name="vacation_date" id="vacationDate">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Дата отпуска</label>
+                                <label for="vacationDate"></label><input type="date" class="form-control form-control-lg" name="vacation_date" id="vacationDate">
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Дата поступления на должность</label>
-                                <label for="joinDate"></label><input type="date" class="form-control" name="join_date" id="joinDate">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold">Дата принятия</label>
+                                <label for="joinDate"></label><input type="date" class="form-control form-control-lg" name="join_date" id="joinDate">
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">ВКонтакте</label>
-                                <label for="vkLink"></label><input type="url" class="form-control" name="vk_link" id="vkLink" placeholder="https://vk.com/username">
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">Ссылка VK</label>
+                                <label for="vkLink"></label><input type="url" class="form-control form-control-lg" name="vk_link" id="vkLink" placeholder="https://vk.com/username">
                             </div>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-                        <button type="button" class="btn btn-danger" onclick="showDismissModal()">Снять с должности</button>
-                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Отмена</button>
+                        <button type="button" class="btn btn-outline-danger rounded-pill" id="dismissButton" style="display: none;" onclick="showDismissModal()">
+                            <i class="bi bi-person-x me-1"></i>Снять
+                        </button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-4">
+                            <i class="bi bi-check-lg me-1"></i>Сохранить
+                        </button>
                     </div>
                 </form>
             </div>
@@ -179,283 +249,114 @@
 
     <div class="modal fade" id="dismissModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
-            <div class="modal-content bg-dark text-white">
-                <div class="modal-header">
-                    <h5 class="modal-title">Снять с должности</h5>
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-semibold">
+                        <i class="bi bi-person-x-fill me-2"></i>Снять с должности
+                    </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form id="dismissForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="member_id" id="dismissMemberId">
                     <div class="modal-body">
                         <div class="mb-3">
-                            <label class="form-label">Причина снятия (необязательно)</label>
-                            <label for="dismissalReason"></label><textarea class="form-control" name="dismissal_reason" id="dismissalReason"
-                                                                           rows="3" placeholder="Укажите причину снятия, если необходимо"></textarea>
+                            <label class="form-label fw-semibold">Причина снятия</label>
+                            <label for="dismissalReason"></label><textarea class="form-control" name="dismissal_reason" id="dismissalReason" rows="3" placeholder="Укажите причину снятия..."></textarea>
                         </div>
-                        <div class="form-check mb-3">
+                        <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" name="remove_roles" id="removeRoles" checked>
                             <label class="form-check-label" for="removeRoles">
-                                Снять роли Discord через бота
+                                Снять Discord роли
                             </label>
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                        <button type="submit" class="btn btn-danger">Снять с должности</button>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Отмена</button>
+                        <button type="submit" class="btn btn-danger rounded-pill px-4">
+                            <i class="bi bi-trash me-1"></i>Снять
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <script>
-        const CURRENT_ACCESS = parseInt(document.getElementById('userAuthData').dataset.accessLevel) || 0;
-
-        function updateWarnings(memberId, type, change) {
-            fetch('/update-warnings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-KEY': '123'
-                },
-                body: JSON.stringify({
-                    id: memberId,
-                    type: type,
-                    change: change
-                })
-            })
-            .then(response => {
-                if (!response.ok) throw new Error('Ошибка сети');
-                return response.json();
-            })
-            .then(data => {
-                if (data.success) {
-                    if (data.dismissed) {
-                        alert(data.message);
-                    }
-                    if (data.message) {
-                        alert(data.message);
-                    }
-                    location.reload();
-                } else {
-                    alert('Ошибка: ' + (data.error || 'Неизвестная ошибка'));
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка:', error);
-                alert('Ошибка при обновлении: ' + error.message);
-            });
-        }
-
-        function loadMemberData(memberId) {
-            fetch(`/get-staff-member?id=${memberId}`)
-                .then(response => {
-                    if (!response.ok) throw new Error('Ошибка сети');
-                    return response.json();
-                })
-                .then(data => {
-                    document.getElementById('memberId').value = data.id;
-                    document.getElementById('fullName').value = data.full_name || '';
-                    document.getElementById('nickname').value = data.nickname || '';
-                    document.getElementById('salary').value = data.salary || '';
-                    document.getElementById('warnings').value = data.warnings || '0/0';
-                    document.getElementById('vacationDate').value = data.vacation_date || '';
-                    document.getElementById('joinDate').value = data.join_date || '';
-                    document.getElementById('vkLink').value = data.vk_link || '';
-
-                    const modal = new bootstrap.Modal(document.getElementById('editModal'));
-                    modal.show();
-                })
-                .catch(error => {
-                    console.error('Ошибка:', error);
-                    alert('Ошибка загрузки данных: ' + error.message);
-                });
-        }
-
-        function showDismissModal() {
-            document.getElementById('dismissMemberId').value = document.getElementById('memberId').value;
-
-            const modal = new bootstrap.Modal(document.getElementById('dismissModal'));
-            modal.show();
-        }
-
-        function dismissMember() {
-            const form = document.getElementById('dismissForm');
-            const formData = new FormData(form);
-            const memberId = formData.get('member_id');
-            const reason = formData.get('dismissal_reason');
-            const removeRoles = formData.get('remove_roles') === 'on';
-
-            fetch('/dismiss-staff-member', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-KEY': '123'
-                },
-                body: JSON.stringify({
-                    id: memberId,
-                    reason: reason || 'Снятие через интерфейс',
-                    remove_roles: removeRoles
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Сотрудник снят с должности');
-                    const editModal = bootstrap.Modal.getInstance(document.getElementById('editModal'));
-                    const dismissModal = bootstrap.Modal.getInstance(document.getElementById('dismissModal'));
-                    if (editModal) editModal.hide();
-                    if (dismissModal) dismissModal.hide();
-                    location.reload();
-                } else {
-                    alert('Ошибка: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка:', error);
-                alert('Ошибка при снятии: ' + error.message);
-            });
-        }
-
-        function quickDismiss(memberId) {
-            if (confirm('Снять этого сотрудника с должности без указания причины?')) {
-                fetch('/dismiss-staff-member', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-KEY': '123'
-                    },
-                    body: JSON.stringify({
-                        id: memberId,
-                        reason: 'Быстрое снятие',
-                        remove_roles: true
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Сотрудник снят с должности');
-                        // Удаляем строку из таблицы вместо перезагрузки
-                        document.querySelector(`tr[data-member-id="${memberId}"]`).remove();
-                    } else {
-                        alert('Ошибка: ' + data.error);
-                    }
-                })
-                .catch(error => {
-                    console.error('Ошибка:', error);
-                    alert('Ошибка при снятии: ' + error.message);
-                });
-            }
-        }
-
-        function loadRoleData(level) {
-            fetch(`/get-role-data?level=${level}`)
-                .then(response => response.json())
-                .then(data => {
-                    const permissionsField = document.getElementById('permissionsText');
-                    const responsibilitiesField = document.getElementById('responsibilitiesText');
-
-                    if (permissionsField) {
-                        permissionsField.value = data.permissions || '';
-                    }
-                    if (responsibilitiesField) {
-                        responsibilitiesField.value = data.responsibilities || '';
-                    }
-                })
-                .catch(error => {
-                    console.error('Ошибка загрузки данных роли:', error);
-                });
-        }
-
-        document.getElementById('dismissForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            dismissMember();
-        });
-
-        document.addEventListener('DOMContentLoaded', function() {
-            if (CURRENT_ACCESS >= 6) {
-                const roleSelect = document.getElementById('roleSelect');
-
-                if (roleSelect) {
-                    loadRoleData(roleSelect.value);
-
-                    roleSelect.addEventListener('change', function() {
-                        loadRoleData(this.value);
-                    });
-                }
-            }
-        });
-
-        if (CURRENT_ACCESS >= 6 && document.getElementById('roleSelect')) {
-            const roleSelect = document.getElementById('roleSelect');
-
-            roleSelect.addEventListener('change', function() {
-                fetch(`/get-role-data?level=${this.value}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        document.getElementById('permissionsText').value = data.permissions || '';
-                        document.getElementById('responsibilitiesText').value = data.responsibilities || '';
-                    });
-            });
-
-            fetch(`/get-role-data?level=${roleSelect.value}`)
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('permissionsText').value = data.permissions || '';
-                    document.getElementById('responsibilitiesText').value = data.responsibilities || '';
-                });
-        }
-    </script>
-
-    {% if current_user.access_level >= 6 %}
-    <div class="card border-primary mt-5">
-        <div class="card-header bg-primary text-white">
-            <h4 class="mb-0">Управление правами и обязанностями</h4>
+    {% if current_user.access_level >= 8 %}
+    <div class="card border-0 shadow-sm mt-5">
+        <div class="card-header bg-transparent border-0 py-3">
+            <h5 class="mb-0 fw-semibold text-primary">
+                <i class="bi bi-gear-fill me-2"></i>Управление правами и обязанностями
+            </h5>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ url_for('update_staff_roles') }}">
-                <div class="mb-3">
-                    <label class="form-label">Должность</label>
-                    <label for="roleSelect"></label><select class="form-select" name="role_level" id="roleSelect">
-                        <option value="6">Куратор дискорда</option>
-                        <option value="5">Зам.Куратора дискорда</option>
-                        <option value="4">Гл.Модератор дискорда</option>
-                        <option value="3">Ст.Модератор дискорда</option>
-                        <option value="2">Модератор дискорда</option>
-                        <option value="1">Мл.Модератор дискорда</option>
-                    </select>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Должность</label>
+                        <label for="roleSelect"></label><select class="form-select form-select-lg" name="role_level" id="roleSelect">
+                            <option value="6">Куратор дискорда</option>
+                            <option value="5">Зам.Куратора дискорда</option>
+                            <option value="4">Гл.Модератор дискорда</option>
+                            <option value="3">Ст.Модератор дискорда</option>
+                            <option value="2">Модератор дискорда</option>
+                            <option value="1">Мл.Модератор дискорда</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Права</label>
-                    <label for="permissionsText"></label><textarea class="form-control" name="permissions" id="permissionsText" rows="6"
-                                                                   placeholder="Вводите каждый пункт с новой строки" style="white-space: pre-wrap;"></textarea>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Обязанности</label>
-                    <label for="responsibilitiesText"></label><textarea class="form-control" name="responsibilities" id="responsibilitiesText" rows="6"
-                                                                        placeholder="Вводите каждый пункт с новой строки" style="white-space: pre-wrap;"></textarea>
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Права</label>
+                        <label for="permissionsText"></label><textarea class="form-control" name="permissions" id="permissionsText" rows="8"
+                                                                       placeholder="Заполняйте каждый пункт с новой строки..." style="white-space: pre-wrap;"></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Обязанности</label>
+                        <label for="responsibilitiesText"></label><textarea class="form-control" name="responsibilities" id="responsibilitiesText" rows="8"
+                                                                            placeholder="Заполняйте каждый пункт с новой строки..." style="white-space: pre-wrap;"></textarea>
+                    </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <div class="text-center mt-4">
+                    <button type="submit" class="btn btn-primary rounded-pill px-4">
+                        <i class="bi bi-save me-2"></i>Сохранить изменения
+                    </button>
+                </div>
             </form>
 
             <hr class="my-4">
 
-            <h5>Текущие права и обязанности:</h5>
-            <div class="row mt-3">
+            <h5 class="fw-semibold mb-3">Текущие права и обязанности:</h5>
+            <div class="row row-cols-1 row-cols-md-2 g-4">
                 {% for role in staff_roles %}
-                <div class="col-md-6 mb-3">
-                    <div class="card h-100">
-                        <div class="card-header">
-                            <strong>{{ role.role_name }}</strong>
+                <div class="col">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-header bg-light">
+                            <strong class="text-primary">{{ role.role_name }}</strong>
                         </div>
                         <div class="card-body">
-                            <h6>Права:</h6>
-                            <div style="white-space: pre-wrap;">{{ role.permissions }}</div>
-                            <hr>
-                            <h6>Обязанности:</h6>
-                            <div style="white-space: pre-wrap;">{{ role.responsibilities }}</div>
+                            <h6 class="fw-semibold text-success">Права:</h6>
+                            <div class="bg-light p-3 rounded" style="font-size: 0.9rem;">
+                                <ul>
+                                    {% for item in role.permissions.split('\n') %}
+                                        {% if item.strip() %}
+                                            <li>{{ item }}</li>
+                                        {% endif %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                            <h6 class="fw-semibold text-primary mt-3">Обязанности:</h6>
+                            <div class="bg-light p-3 rounded" style="font-size: 0.9rem;">
+                                <ul>
+                                    {% for item in role.responsibilities.split('\n') %}
+                                        {% if item.strip() %}
+                                            <li>{{ item }}</li>
+                                        {% endif %}
+                                    {% endfor %}
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -465,4 +366,271 @@
     </div>
     {% endif %}
 </div>
+
+<style>
+    .text-gradient-primary {
+        background: linear-gradient(135deg, #007bff, #6610f2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .bg-purple { background-color: #9e6bff; }
+    .bg-pink { background-color: #965f7f; }
+    .bg-cyan { background-color: #40e0d0; }
+
+    .card {
+        border-radius: 16px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .staff-row {
+        transition: background-color 0.2s ease;
+    }
+
+    .staff-row:hover {
+        background-color: #f8f9fa !important;
+    }
+
+    .table th {
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #e9ecef;
+        padding: 1rem 0.5rem;
+    }
+
+    .table td {
+        padding: 1rem 0.5rem;
+        vertical-align: middle;
+    }
+
+    .badge {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .btn {
+        transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .form-control, .form-select {
+        border-radius: 10px;
+        border: 2px solid #e9ecef;
+        transition: border-color 0.2s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.1);
+    }
+
+    .modal-content {
+        border-radius: 16px;
+    }
+</style>
+
+<script>
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+    const token = localStorage.getItem("jwt");
+    const CURRENT_ACCESS = parseInt(document.getElementById('userAuthData').dataset.accessLevel) || 0;
+    const roleNames = {
+        8: "Куратор дискорда",
+        7: "Зам.Куратора дискорда",
+        6: "Гл.Модератор дискорда",
+        5: "Ст.Модератор дискорда",
+        4: "Следящий за хелперами",
+        3: "Модератор дискорда",
+        2: "Мл.Модератор дискорда",
+        1: "Хелпер дискорда"
+    };
+
+    function updateWarnings(memberId, type, change) {
+        fetch('/update-warnings', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({
+                id: memberId,
+                type: type,
+                change: change
+            }),
+            credentials: "include"
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Ошибка сети');
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                if (data.dismissed) {
+                    showToast(data.message, 'warning');
+                }
+                location.reload();
+            } else {
+                showToast('Ошибка: ' + (data.error || 'Неизвестная ошибка'), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            showToast('Ошибка при обновлении', 'error');
+        });
+    }
+
+    function loadMemberData(memberId) {
+        fetch(`/get-staff-member?id=${memberId}`)
+            .then(r => { if (!r.ok) throw new Error('Ошибка сети'); return r.json(); })
+            .then(data => {
+                document.getElementById('memberId').value = data.id;
+                document.getElementById('fullName').value = data.full_name || '';
+                document.getElementById('nickname').value = data.nickname || '';
+                document.getElementById('salary').value = data.salary || '';
+                document.getElementById('warnings').value = data.warnings || '0/0';
+                document.getElementById('vacationDate').value = data.vacation_date || '';
+                document.getElementById('joinDate').value = data.join_date || '';
+                document.getElementById('vkLink').value = data.vk_link || '';
+
+                const dismissBtn = document.getElementById('dismissButton');
+                if (CURRENT_ACCESS >= 6 && CURRENT_ACCESS > (data.access_level ?? 0)) {
+                    dismissBtn.style.display = 'block';
+                } else {
+                    dismissBtn.style.display = 'none';
+                }
+
+                new bootstrap.Modal(document.getElementById('editModal')).show();
+            })
+            .catch(err => {
+                console.error('Ошибка:', err);
+                showToast('Ошибка загрузки данных', 'error');
+            });
+    }
+
+    function showDismissModal() {
+        document.getElementById('dismissMemberId').value = document.getElementById('memberId').value;
+        new bootstrap.Modal(document.getElementById('dismissModal')).show();
+    }
+
+    function dismissMember() {
+        const formData = new FormData(document.getElementById('dismissForm'));
+        const data = {
+            id: formData.get('member_id'),
+            reason: formData.get('dismissal_reason') || 'Снятие через интерфейс',
+            remove_roles: formData.get('remove_roles') === 'on'
+        };
+
+        fetch('/dismiss-staff-member', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify(data),
+            credentials: "include"
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Сотрудник снят с должности', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('dismissModal')).hide();
+                bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showToast('Ошибка: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка:', error);
+            showToast('Ошибка при снятии', 'error');
+        });
+    }
+
+    function quickDismiss(memberId) {
+        if (confirm('Снять этого сотрудника с должности?')) {
+            fetch('/dismiss-staff-member', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({
+                    id: memberId,
+                    reason: 'Быстрое снятие',
+                    remove_roles: true
+                }),
+                credentials: "include"
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Сотрудник снят с должности', 'success');
+                    document.querySelector(`tr[data-member-id="${memberId}"]`).remove();
+                } else {
+                    showToast('Ошибка: ' + data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+                showToast('Ошибка при снятии', 'error');
+            });
+        }
+    }
+
+    function loadRoleData(level) {
+        fetch(`/get-role-data?level=${level}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('permissionsText').value = data.permissions || '';
+                document.getElementById('responsibilitiesText').value = data.responsibilities || '';
+                document.getElementById('currentRoleName').textContent = roleNames[level] || 'Неизвестная роль';
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки данных роли:', error);
+            });
+    }
+
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type === 'error' ? 'danger' : type} border-0`;
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+        document.body.appendChild(toast);
+        new bootstrap.Toast(toast).show();
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('dismissForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            dismissMember();
+        });
+
+        if (CURRENT_ACCESS >= 8) {
+            const roleSelect = document.getElementById('roleSelect');
+            if (roleSelect) {
+                loadRoleData(roleSelect.value);
+                roleSelect.addEventListener('change', function() {
+                    loadRoleData(this.value);
+                });
+            }
+        }
+    });
+</script>
 {% endblock %}

@@ -2,83 +2,103 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>🏖️ Заявки на отпуск</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="h3 fw-bold text-gradient-primary">🏖️ Заявки на отпуск</h2>
+        <button class="btn btn-success btn-lg rounded-pill shadow-sm" type="button" data-bs-toggle="modal" data-bs-target="#vacationModal">
+            <i class="bi bi-calendar-plus me-2"></i>Подать заявку
+        </button>
+    </div>
 
-    <button class="btn btn-success mb-4" type="button" data-bs-toggle="modal" data-bs-target="#vacationModal">
-        📝 Подать заявку на отпуск
-    </button>
-
-    <div class="modal fade" id="vacationModal" tabindex="-1" aria-labelledby="vacationModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title" id="vacationModalLabel">📝 Подать заявку на отпуск</h5>
+    <div class="modal fade" id="vacationModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-gradient-success text-white">
+                    <h5 class="modal-title fw-semibold">📝 Заявка на отпуск</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <form method="POST" action="{{ url_for('submit_vacation_request') }}" id="vacationForm">
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Дата начала отпуска:</label>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Дата начала отпуска</label>
                             <label>
                                 <input type="date" class="form-control form-control-lg" name="start_date" required
                                        min="{{ now.strftime('%Y-%m-%d') }}">
                             </label>
                         </div>
 
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Дата окончания отпуска:</label>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Дата окончания отпуска</label>
                             <label>
                                 <input type="date" class="form-control form-control-lg" name="end_date" required
                                        min="{{ now.strftime('%Y-%m-%d') }}">
                             </label>
                         </div>
 
-                        <div class="mb-4">
-                            <label class="form-label fw-bold">Причина отпуска:</label>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Причина отпуска</label>
                             <label>
-                                <textarea class="form-control" name="reason" rows="2" required
-                                          placeholder="Опишите причину отпуска"></textarea>
+<textarea class="form-control" name="reason" rows="4" required
+          placeholder="Опишите причину отпуска"></textarea>
                             </label>
                         </div>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" form="vacationForm" class="btn btn-primary">
-                        📨 Отправить на рассмотрение
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" form="vacationForm" class="btn btn-primary rounded-pill px-4">
+                        📨 Отправить
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    {% if current_user.access_level >= 4 and pending_requests %}
-    <div class="card mb-4">
-        <div class="card-header bg-warning text-dark">
-            <h5>⏳ Заявки на рассмотрении</h5>
+    {% if current_user.access_level >= 6 and pending_requests %}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-warning bg-opacity-25 border-0 py-3">
+            <h5 class="mb-0 fw-semibold">⏳ Заявки на рассмотрении</h5>
         </div>
         <div class="card-body">
             {% for request in pending_requests %}
-            <div class="card mb-3">
+            <div class="card border-0 shadow-sm mb-3">
                 <div class="card-body">
-                    <h6>Заявка #{{ request.id }}</h6>
-                    <p><strong>Сотрудник:</strong> {{ request.user.nickname or request.user.username }}</p>
-                    <p><strong>Период:</strong> {{ request.start_date.strftime('%d.%m.%Y') }} - {{ request.end_date.strftime('%d.%m.%Y') }}</p>
-                    <p><strong>Причина:</strong> {{ request.reason }}</p>
-                    <p><strong>Подана:</strong> {{ request.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <h6 class="text-primary fw-semibold">Заявка #{{ request.id }}</h6>
+                        <span class="badge bg-warning rounded-pill">Ожидает</span>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Сотрудник:</strong> {{ request.user.nickname or request.user.username }}</p>
+                            <p class="mb-1"><strong>Период:</strong> {{ request.start_date.strftime('%d.%m.%Y') }} - {{ request.end_date.strftime('%d.%m.%Y') }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Подана:</strong> {{ request.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                        </div>
+                    </div>
+
+                    <p class="mb-3"><strong>Причина:</strong> {{ request.reason }}</p>
 
                     <form method="POST" action="{{ url_for('process_vacation_request', request_id=request.id) }}">
-                        <div class="mb-2">
-                            <label class="form-label">Причина отказа (если отклоняете):</label>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Причина отказа:</label>
                             <label>
-                                <textarea class="form-control" name="rejection_reason" rows="2"
-                                          placeholder="Укажите причину отказа..."></textarea>
+<textarea class="form-control" name="rejection_reason" rows="2"
+          placeholder="Укажите причину отказа..."></textarea>
                             </label>
                         </div>
 
-                        <div class="btn-group">
-                            <button style="margin-right: 5px; border-radius: 6px" type="submit" name="action" value="approve" class="btn btn-success">✅ Одобрить</button>
-                            <button style="border-radius: 6px" type="submit" name="action" value="reject" class="btn btn-danger">❌ Отклонить</button>
+                        <div class="d-flex gap-2">
+                            <button type="submit" name="action" value="approve"
+                                    class="btn btn-success rounded-pill flex-fill">
+                                ✅ Одобрить
+                            </button>
+                            <button type="submit" name="action" value="reject"
+                                    class="btn btn-outline-danger rounded-pill flex-fill">
+                                ❌ Отклонить
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -88,14 +108,14 @@
     </div>
     {% endif %}
 
-    <div class="card">
-        <div class="card-header bg-info text-white">
-            <h5>📊 История ваших заявок</h5>
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-info bg-opacity-25 border-0 py-3">
+            <h5 class="mb-0 fw-semibold">📊 История заявок</h5>
         </div>
         <div class="card-body">
             <div class="mb-3">
-                <label for="statusFilter" class="form-label">Фильтр по статусу:</label>
-                <select class="form-select" id="statusFilter" onchange="filterRequests()">
+                <label class="form-label fw-semibold">Фильтр по статусу:</label>
+                <label for="statusFilter"></label><select class="form-select" id="statusFilter" onchange="filterRequests()">
                     <option value="all">Все статусы</option>
                     <option value="pending">На рассмотрении</option>
                     <option value="approved">Одобренные</option>
@@ -105,44 +125,91 @@
 
             <div id="requestsList">
                 {% for request in user_requests %}
-                <div class="card mb-2 request-item" data-status="{{ request.status }}">
+                <div class="card border-0 shadow-sm mb-3 request-item" data-status="{{ request.status }}">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div>
-                                <h6>Заявка #{{ request.id }}</h6>
-                                <p><strong>Статус:</strong>
-                                    {% if request.status == 'pending' %}
-                                        <span class="badge bg-warning">⏳ На рассмотрении</span>
-                                    {% elif request.status == 'approved' %}
-                                        <span class="badge bg-success">✅ Одобрено</span>
-                                    {% else %}
-                                        <span class="badge bg-danger">❌ Отклонено</span>
-                                    {% endif %}
-                                </p>
-                                <p><strong>Период:</strong> {{ request.start_date.strftime('%d.%m.%Y') }} - {{ request.end_date.strftime('%d.%m.%Y') }}</p>
-                                <p><strong>Причина:</strong> {{ request.reason }}</p>
-                                <p><strong>Подана:</strong> {{ request.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
-
-                                {% if request.status == 'rejected' and request.rejection_reason %}
-                                <p><strong>Причина отказа:</strong>
-                                    <span class="text-danger">{{ request.rejection_reason }}</span>
-                                </p>
-                                {% endif %}
-
-                                {% if request.status == 'approved' and request.processed_at %}
-                                <p><strong>Обработана:</strong> {{ request.processed_at.strftime('%d.%m.%Y %H:%M') }}</p>
-                                {% endif %}
-                            </div>
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="text-primary fw-semibold">Заявка #{{ request.id }}</h6>
+                            {% if request.status == 'pending' %}
+                                <span class="badge bg-warning rounded-pill">⏳ На рассмотрении</span>
+                            {% elif request.status == 'approved' %}
+                                <span class="badge bg-success rounded-pill">✅ Одобрено</span>
+                            {% else %}
+                                <span class="badge bg-danger rounded-pill">❌ Отклонено</span>
+                            {% endif %}
                         </div>
+
+                        <div class="row mb-2">
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong>Период:</strong> {{ request.start_date.strftime('%d.%m.%Y') }} - {{ request.end_date.strftime('%d.%m.%Y') }}</p>
+                                <p class="mb-1"><strong>Подана:</strong> {{ request.created_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                            </div>
+                            {% if request.status == 'approved' and request.processed_at %}
+                            <div class="col-md-6">
+                                <p class="mb-1"><strong>Обработана:</strong> {{ request.processed_at.strftime('%d.%m.%Y %H:%M') }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <p class="mb-2"><strong>Причина:</strong> {{ request.reason }}</p>
+
+                        {% if request.status == 'rejected' and request.rejection_reason %}
+                        <div class="alert alert-danger mt-2 mb-0 py-2">
+                            <strong>Причина отказа:</strong> {{ request.rejection_reason }}
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
                 {% else %}
-                <p class="text-muted">У вас пока нет заявок на отпуск.</p>
+                <div class="text-center py-4">
+                    <i class="bi bi-calendar-x display-4 text-muted"></i>
+                    <p class="text-muted mt-2">У вас пока нет заявок на отпуск</p>
+                </div>
                 {% endfor %}
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .text-gradient-primary {
+        background: linear-gradient(135deg, #007bff, #6610f2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .bg-gradient-success {
+        background: linear-gradient(135deg, #28a745, #20c997);
+    }
+
+    .card {
+        border-radius: 12px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .btn {
+        transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        transition: border-color 0.2s ease;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.1);
+    }
+</style>
 
 <script>
     function filterRequests() {
@@ -175,6 +242,8 @@
         vacationModal.addEventListener('hidden.bs.modal', function () {
             document.getElementById('vacationForm').reset();
         });
+
+        filterRequests();
     });
 </script>
 {% endblock %}

@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
+<div class="container py-4">
     <div class="row">
-        <div class="col-md-8">
+        <div class="col-lg-8">
             <nav aria-label="breadcrumb" class="mb-4">
                 <ol class="breadcrumb">
                     <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Главная</a></li>
@@ -12,46 +12,86 @@
             </nav>
 
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1>{{ guide.title }}</h1>
-                {% if current_user.access_level >= 4 %}
                 <div>
-                    <a href="{{ url_for('edit_guide', guide_id=guide.id) }}" class="btn btn-warning btn-sm">Редактировать</a>
+                    <span class="badge bg-primary mb-2">{{ guide.category }}</span>
+                    <h1 class="h2 mb-0">{{ guide.title }}</h1>
+                </div>
+                {% if current_user.access_level >= 6 %}
+                <div class="btn-group">
+                    <a href="{{ url_for('edit_guide', guide_id=guide.id) }}" class="btn btn-outline-warning">
+                        <i class="bi bi-pencil me-1"></i>Редактировать
+                    </a>
                     <form action="{{ url_for('delete_guide', guide_id=guide.id) }}" method="POST" class="d-inline">
-                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Удалить это руководство?')">Удалить</button>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-outline-danger ms-1" onclick="return confirm('Удалить это руководство?')">
+                            <i class="bi bi-trash me-1"></i>Удалить
+                        </button>
                     </form>
                 </div>
                 {% endif %}
             </div>
 
-            <div class="card mb-4">
-                <div class="card-body guide-content">
-                    {{ guide.content|safe }}
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-body p-4 guide-content">
+                    {% if guide.content %}
+                        {% if guide.content.find('<' ~ 'div') != -1 or guide.content.find('<' ~ 'p>') != -1 %}
+                            {{ guide.content|safe }}
+                        {% else %}
+                            {{ guide.content|markdown|safe }}
+                        {% endif %}
+                    {% else %}
+                        <p class="text-muted">Контент отсутствует</p>
+                    {% endif %}
                 </div>
-                <div class="card-footer text-muted">
-                    Последнее обновление: {{ guide.last_updated.strftime('%d.%m.%Y в %H:%M') }}
+                <div class="card-footer bg-light py-3 d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        <i class="bi bi-clock-history me-1"></i>
+                        Последнее обновление: {{ guide.last_updated.strftime('%d.%m.%Y в %H:%M') }}
+                    </small>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    Похожие руководства
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 sticky-top" style="top: 20px;">
+                <div class="card-header bg-gradient-primary text-white py-3">
+                    <h3 class="h5 mb-0"><i class="bi bi-bookmarks me-2"></i>Похожие руководства</h3>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-3">
                     {% if related_guides %}
-                        <div class="list-group">
+                        <div class="list-group list-group-flush">
                             {% for related in related_guides %}
                             <a href="{{ url_for('view_guide', guide_id=related.id) }}"
-                               class="list-group-item list-group-item-action {% if related.id == guide.id %}active{% endif %}">
-                                {{ related.title }}
-                                <small class="text-muted d-block">{{ related.category }}</small>
+                               class="list-group-item list-group-item-action border-0 py-3 {% if related.id == guide.id %}active{% endif %}">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1 {% if related.id == guide.id %}text-white{% else %}text-dark{% endif %}">{{ related.title }}</h6>
+                                </div>
+                                <small class="{% if related.id == guide.id %}text-light{% else %}text-muted{% endif %}">{{ related.category }}</small>
                             </a>
                             {% endfor %}
                         </div>
                     {% else %}
-                        <div class="alert alert-info">Нет похожих руководств</div>
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-info-circle d-block mb-2" style="font-size: 2rem;"></i>
+                            <p class="mb-0">Нет похожих руководств</p>
+                        </div>
                     {% endif %}
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mt-4">
+                <div class="card-header bg-light py-3">
+                    <h6 class="mb-0"><i class="bi bi-lightning me-2"></i>Быстрые действия</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-house me-2"></i>Все руководства
+                        </a>
+                        <a href="{{ url_for('create_guide') }}" class="btn btn-outline-success">
+                            <i class="bi bi-plus-circle me-2"></i>Создать новое
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -60,19 +100,21 @@
 
 <style>
     .guide-content {
-        line-height: 1.6;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        word-wrap: break-word;
+        line-height: 1.8;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        color: #2d3748;
+        font-size: 1.05rem;
     }
 
     .guide-content p {
-        margin-bottom: 1em;
+        margin-bottom: 1.25em;
         white-space: normal;
     }
 
     .guide-content ul {
-        list-style-type: disc !important;
+        list-style-type: disc;
         margin-left: 1.5em;
+        margin-bottom: 1.5em;
         padding-left: 0;
     }
 
@@ -84,6 +126,7 @@
     .guide-content ol {
         list-style-type: decimal;
         margin-left: 1.5em;
+        margin-bottom: 1.5em;
         padding-left: 0;
     }
 
@@ -95,31 +138,123 @@
     .guide-content h2,
     .guide-content h3,
     .guide-content h4 {
-        margin-top: 1.5em;
+        margin-top: 1.8em;
         margin-bottom: 0.8em;
-        color: #2c3e50;
+        color: #2c5282;
+        font-weight: 600;
+        padding-bottom: 0.3em;
+        border-bottom: 1px solid #e2e8f0;
+        scroll-margin-top: 80px;
+    }
+
+    .guide-content h2 {
+        font-size: 1.8em;
+    }
+
+    .guide-content h3 {
+        font-size: 1.5em;
+    }
+
+    .guide-content h4 {
+        font-size: 1.25em;
+        color: #4a5568;
     }
 
     .guide-content blockquote {
-        border-left: 3px solid #ddd;
-        padding-left: 1em;
-        margin-left: 0;
-        margin-right: 0;
-        color: #666;
+        border-left: 4px solid #4299e1;
+        padding: 1em 1.5em;
+        margin: 1.5em 0;
+        background-color: #ebf8ff;
+        border-radius: 0 8px 8px 0;
+        color: #2b6cb0;
     }
 
     .guide-content code {
-        background-color: #f8f9fa;
+        background-color: #edf2f7;
         padding: 0.2em 0.4em;
-        border-radius: 3px;
-        font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        border-radius: 4px;
+        font-family: 'Fira Code', monospace;
+        font-size: 0.9em;
+        color: #e53e3e;
     }
 
     .guide-content pre {
-        background-color: #f8f9fa;
-        padding: 1em;
-        border-radius: 4px;
+        background-color: #2d3748;
+        padding: 1.2em;
+        border-radius: 8px;
         overflow-x: auto;
+        margin: 1.5em 0;
+        color: #e2e8f0;
+        line-height: 1.5;
+    }
+
+    .guide-content pre code {
+        background: none;
+        padding: 0;
+        color: inherit;
+    }
+
+    .guide-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5em 0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .guide-content table th,
+    .guide-content table td {
+        padding: 0.75em;
+        border: 1px solid #e2e8f0;
+    }
+
+    .guide-content table th {
+        background-color: #f7fafc;
+        font-weight: 600;
+        color: #4a5568;
+    }
+
+    .guide-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+        margin: 1.5em 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    @media (max-width: 992px) {
+        .guide-content {
+            font-size: 1rem;
+        }
+
+        .guide-content h2 {
+            font-size: 1.6em;
+        }
+
+        .guide-content h3 {
+            font-size: 1.3em;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .btn-group .btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+        }
+    }
+
+    @media print {
+        .card-header, .btn-group, .sticky-top {
+            display: none !important;
+        }
+
+        .guide-content {
+            font-size: 12pt;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 100%;
+        }
     }
 </style>
 {% endblock %}

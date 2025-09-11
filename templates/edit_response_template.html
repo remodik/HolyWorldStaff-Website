@@ -1,35 +1,162 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container">
+<div class="container py-4">
     <div class="d-flex align-items-center mb-4">
-        <i class="bi bi-ticket-detailed section-icon me-3"></i>
+        <div class="icon-wrapper bg-primary rounded-circle p-3 me-3">
+            <i class="bi bi-ticket-detailed text-white" style="font-size: 1.5rem;"></i>
+        </div>
         <div>
-            <h1 class="mb-0">
+            <h1 class="mb-1 display-6 fw-bold text-dark">
                 {% if template %}Редактирование шаблона{% else %}Добавление нового шаблона{% endif %}
             </h1>
-            <p class="lead text-muted">Шаблон ответа для тикетов</p>
+            <p class="text-muted mb-0">Шаблон ответа для тикетов</p>
         </div>
     </div>
 
-    <form method="POST">
-        <div class="mb-3">
-            <label for="situation" class="form-label">Ситуация</label>
-            <input type="text" class="form-control" id="situation" name="situation" 
-                   value="{{ template.situation if template else '' }}" required>
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="mb-4">
+                            <label for="situation" class="form-label fw-semibold">
+                                <i class="bi bi-chat-quote me-1 text-primary"></i>Ситуация
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="situation" name="situation"
+                                   value="{{ template.situation if template else '' }}"
+                                   placeholder="Опишите ситуацию, для которой предназначен этот шаблон" required>
+                            <div class="form-text">Например: "Пользователь не может войти в аккаунт"</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="response" class="form-label fw-semibold">
+                                <i class="bi bi-text-paragraph me-1 text-primary"></i>Шаблон ответа
+                            </label>
+                            <textarea class="form-control" id="response" name="response" rows="8"
+                                      placeholder="Введите текст шаблона ответа..." required
+                                      style="min-height: 200px;">{{ template.response if template else '' }}</textarea>
+                            <div class="form-text">
+                                Используйте переносы строк для форматирования. Поддерживаются стандартные символы.
+                            </div>
+                        </div>
+
+                        {% if template %}
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-eye me-1 text-primary"></i>Предпросмотр
+                            </label>
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <pre class="mb-0 preview-text">{{ template.response }}</pre>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{{ url_for('ticket_responses') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>Назад к списку
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-save me-2"></i>
+                                {% if template %}Обновить шаблон{% else %}Создать шаблон{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mt-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0">
+                        <i class="bi bi-lightbulb me-2 text-warning"></i>Советы по созданию шаблонов
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li>Используйте четкие и понятные описания ситуаций</li>
+                        <li>Добавляйте место для персонализации (например, <code>[Имя]</code>)</li>
+                        <li>Разделяйте ответ на логические абзацы для лучшей читаемости</li>
+                        <li>Включайте конкретные инструкции, если это необходимо</li>
+                    </ul>
+                </div>
+            </div>
         </div>
-        
-        <div class="mb-3">
-            <label for="response" class="form-label">Шаблон ответа</label>
-            <textarea class="form-control" id="response" name="response" rows="6" required>{{ template.response if template else '' }}</textarea>
-        </div>
-        
-        <button type="submit" class="btn btn-primary me-2">
-            <i class="bi bi-save me-1"></i>Сохранить
-        </button>
-        <a href="{{ url_for('ticket_responses') }}" class="btn btn-secondary">
-            <i class="bi bi-arrow-left me-1"></i>Отмена
-        </a>
-    </form>
+    </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const responseTextarea = document.getElementById('response');
+    const previewElement = document.querySelector('.preview-text');
+
+    if (responseTextarea && previewElement) {
+        responseTextarea.addEventListener('input', function() {
+            previewElement.textContent = this.value;
+        });
+    }
+
+    const situationInput = document.getElementById('situation');
+    const situationCounter = document.createElement('div');
+    situationCounter.className = 'form-text text-end';
+    situationInput.parentNode.appendChild(situationCounter);
+
+    situationInput.addEventListener('input', function() {
+        situationCounter.textContent = `${this.value.length}/120 символов`;
+        if (this.value.length > 120) {
+            situationCounter.classList.add('text-danger');
+        } else {
+            situationCounter.classList.remove('text-danger');
+        }
+    });
+
+    if (situationInput.value) {
+        situationInput.dispatchEvent(new Event('input'));
+    }
+});
+</script>
+
+<style>
+    .icon-wrapper {
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .form-control:focus {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+
+    .preview-text {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+        line-height: 1.5;
+    }
+
+    .card {
+        border-radius: 12px;
+    }
+
+    .btn {
+        border-radius: 8px;
+        padding: 0.5rem 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+        .d-flex.justify-content-between.align-items-center {
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .btn {
+            width: 100%;
+        }
+    }
+</style>
 {% endblock %}
