@@ -599,7 +599,6 @@
     </script>
 
     <script>
-        const token = localStorage.getItem("jwt");
         function editDismissedMember(dismissalId) {
             fetch(`/get-dismissed-member-details?id=${dismissalId}`)
                 .then(response => response.json())
@@ -762,7 +761,6 @@
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Полученные данные:', data);
 
                     document.getElementById('detailFullName').textContent = data.full_name || 'Не указано';
                     document.getElementById('detailNickname').textContent = data.nickname || 'Не указан';
