@@ -7,6 +7,7 @@ import re
 import threading
 from datetime import datetime
 from functools import wraps
+import logging
 
 import aiohttp
 import bleach
@@ -31,6 +32,9 @@ from models import db, User, Guide, ResponseTemplate, StaffRole, SalaryHistory, 
 load_dotenv()
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config.from_object(Config)
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
 
 
 @app.template_filter('markdown')
@@ -139,7 +143,7 @@ def staff_required(access_level=1):
                 if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json:
                     return jsonify({"success": False, "error": "Недостаточно прав"}), 403
                 flash('Недостаточно прав для доступа!', 'danger')
-                return redirect(url_for('index'))
+                return redirect(url_for('dashboard'))
             return f(*args, **kwargs)
         return decorated_function
     return decorator
@@ -2019,6 +2023,36 @@ def auth_bot():
 
     jwt_token = create_access_token(identity=str(bot_user.id))
     return jsonify({"success": True, "token": jwt_token})
+
+
+@app.route('/api/update-access-level', methods=['POST'])
+@jwt_required()
+@csrf.exempt
+def api_update_access_level():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No JSON data provided'}), 400
+
+        user_id = data.get('user_id')
+        new_access_level = data.get('access_level')
+
+        if not user_id or new_access_level is None:
+            return jsonify({'success': False, 'error': 'Не указаны user_id или access_level'}), 400
+
+        user = User.query.get(int(user_id))
+        if not user:
+            return jsonify({'success': False, 'error': 'Пользователь не найден'}), 404
+
+        user.access_level = new_access_level
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Уровень доступа обновлен'})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating access level: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':
