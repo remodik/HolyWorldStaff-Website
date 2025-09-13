@@ -206,9 +206,23 @@ def inject_now():
     return {'now': datetime.now()}
 
 
+@app.context_processor
+def inject_now():
+    return {'current_year': datetime.now().year}
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
+
+@app.route('/rules')
+def rules():
+    return render_template('rules.html')
+
+@app.route('/links')
+def links():
+    return render_template('links.html')
 
 
 @app.route('/login')
