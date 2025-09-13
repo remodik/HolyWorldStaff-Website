@@ -4,95 +4,53 @@
 <div class="container text-center my-5">
     <div class="row justify-content-center">
         <div class="col-md-8">
-            <h1 class="display-4 mb-4">Система модерации в Discord</h1>
+            <h1 class="display-4 mb-4">Официальная панель сообщества</h1>
             <p class="lead mb-4">
-                Централизованная платформа для модераторов со всей необходимой информацией,
-                инструкции и гайды для эффективной работы на сервере.
+                Этот сайт используется для работы модераторов.
+                Обычным участникам доступны только общие материалы: правила, часто задаваемые вопросы и полезные ссылки.
             </p>
-            
+
             <div class="card mb-4 border-0 shadow">
                 <div class="card-body">
-                    <h3 class="card-title">Особенности</h3>
+                    <h3 class="card-title">Что вы найдёте здесь</h3>
                     <div class="row mt-4">
                         <div class="col-md-4 mb-3">
                             <div class="feature-icon bg-primary text-white rounded-circle p-3 mb-3 mx-auto" style="width: 70px; height: 70px;">
-                                <i class="bi bi-journal-bookmark fs-2"></i>
+                                <i class="bi bi-book fs-2"></i>
                             </div>
-                            <h5>База знаний</h5>
-                            <p>Полный набор инструкций и руководств</p>
+                            <h5>Правила сервера</h5>
+                            <p>Основные правила для всех участников</p>
                         </div>
                         <div class="col-md-4 mb-3">
                             <div class="feature-icon bg-success text-white rounded-circle p-3 mb-3 mx-auto" style="width: 70px; height: 70px;">
-                                <i class="bi bi-shield-check fs-2"></i>
+                                <i class="bi bi-question-circle fs-2"></i>
                             </div>
-                            <h5>Контроль доступа</h5>
-                            <p>Доступ на основе ваших ролей в Discord</p>
+                            <h5>FAQ</h5>
+                            <p>Ответы на самые популярные вопросы</p>
                         </div>
                         <div class="col-md-4 mb-3">
                             <div class="feature-icon bg-warning text-white rounded-circle p-3 mb-3 mx-auto"
                                  style="width: 70px; height: 70px;">
-                                <i class="bi bi-pencil-square fs-2"></i>
+                                <i class="bi bi-link-45deg fs-2"></i>
                             </div>
-                            <h5>Редактирование</h5>
-                            <p>Обновляйте информацию для всего состава</p>
+                            <h5>Полезные ссылки</h5>
+                            <p>Приглашение на сервер, поддержка и другое</p>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
-                <a href="#features" class="btn btn-outline-secondary btn-lg px-4">
-                    Больше
-                </a>
+                <a href="/rules" class="btn btn-outline-primary btn-lg px-4">Правила Discocrd HolyWorld</a>
+                <a href="/links" class="btn btn-outline-success btn-lg px-4">Полезные ссылки</a>
             </div>
+
+            <hr class="my-5">
+
+            <p class="text-muted">
+                🔒 Разделы для модераторов доступны только после авторизации.
+            </p>
         </div>
     </div>
 </div>
-
-<section id="features" class="py-5 bg-light">
-    <div class="container">
-        <h2 class="text-center mb-5">Как это работает?</h2>
-        
-        <div class="row g-4">
-            <div class="col-md-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <div class="step-number bg-primary text-white rounded-circle mx-auto mb-3" style="width: 50px; height: 50px; line-height: 50px;">1</div>
-                        <h5 class="card-title">Авторизация</h5>
-                        <p class="card-text">
-                            Войдите в свою учетную запись Discord, используя кнопку выше.
-                            Система автоматически проверит ваши роли на сервере.
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <div class="step-number bg-primary text-white rounded-circle mx-auto mb-3" style="width: 50px; height: 50px; line-height: 50px;">2</div>
-                        <h5 class="card-title">Доступ</h5>
-                        <p class="card-text">
-                            Если у вас есть роль модератора или выше, система предоставит вам доступ
-                            в соответствующие разделы с информацией.
-                        </p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-4">
-                <div class="card h-100 border-0 shadow-sm">
-                    <div class="card-body text-center p-4">
-                        <div class="step-number bg-primary text-white rounded-circle mx-auto mb-3" style="width: 50px; height: 50px; line-height: 50px;">3</div>
-                        <h5 class="card-title">Редактирование</h5>
-                        <p class="card-text">
-                            Старший состав могут редактировать любую информацию,
-                            Добавляйте новые руководства и обновляйте существующие.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
 {% endblock %}
