@@ -4,13 +4,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    SECRET_KEY = os.getenv('SECRET_KEY', 'supersecretkey')
+    SECRET_KEY = os.getenv('SECRET_KEY')
     SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'
     DISCORD_CLIENT_ID = os.getenv('DISCORD_CLIENT_ID')
     DISCORD_CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET')
     DISCORD_BOT_TOKEN = os.getenv('DISCORD_BOT_TOKEN')
     DISCORD_GUILD_ID = int(os.getenv('DISCORD_GUILD_ID'))
-    DISCORD_REDIRECT_URI = os.getenv('DISCORD_REDIRECT_URI', 'http://localhost:5000/auth/callback')
+    DISCORD_REDIRECT_URI = os.getenv('DISCORD_REDIRECT_URI')
     DISCORD_ADMIN_ROLE_ID = 1315002924048318510
     DISCORD_CUR_ROLE_ID = 1398628811586801754
     DISCORD_ZAMCUR_ROLE_ID = 12345
